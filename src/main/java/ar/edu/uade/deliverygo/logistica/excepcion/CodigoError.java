@@ -1,0 +1,12 @@
+package ar.edu.uade.deliverygo.logistica.excepcion;
+
+// Codigos de error definidos en la especificacion (seccion 17)
+public enum CodigoError {
+    VALIDATION_ERROR,
+    COURIER_INACTIVE,
+    COURIER_NOT_AVAILABLE,
+    COURIER_HAS_ACTIVE_DELIVERY,
+    DELIVERY_INVALID_STATE,
+    DELIVERY_NOT_PICKED_UP,
+    INVALID_CONFIRMATION_CODE,
+}
