@@ -37,3 +37,6 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Contexto personal (no se sube) ###
+contexto/

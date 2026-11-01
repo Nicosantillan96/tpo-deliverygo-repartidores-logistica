@@ -1,6 +1,8 @@
 package ar.edu.uade.deliverygo.logistica.dto;
 
+import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
+import ar.edu.uade.deliverygo.logistica.model.EstadoRepartidor;
 import ar.edu.uade.deliverygo.logistica.model.TipoVehiculo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,6 +60,23 @@ class ContratosJsonTest {
         assertThat(request.getUsuarioId()).isEqualTo(10L);
         assertThat(request.getVehiculo().getTipo()).isEqualTo(TipoVehiculo.BICICLETA);
         assertThat(request.getVehiculo().getPatente()).isNull();
+    }
+
+    // DTO-02: la respuesta incluye dni y telefono (decision del 01/11/2026)
+    @Test
+    void repartidorResponseIncluyeDniYTelefono() throws Exception {
+        RepartidorResponse response = new RepartidorResponse(
+                5L, 1L, "Juan", "Perez", "30123456", "1155554444",
+                EstadoRepartidor.ACTIVO, Disponibilidad.NO_DISPONIBLE,
+                new VehiculoDTO(TipoVehiculo.MOTO, "AB123CD", null),
+                LocalDateTime.of(2026, 11, 1, 12, 0));
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(response));
+
+        assertThat(json.get("dni").asText()).isEqualTo("30123456");
+        assertThat(json.get("telefono").asText()).isEqualTo("1155554444");
+        assertThat(json.get("estado").asText()).isEqualTo("ACTIVO");
+        assertThat(json.get("vehiculo").get("patente").asText()).isEqualTo("AB123CD");
     }
 
     // DTO-03: un valor que no existe en el enum se rechaza al leer el JSON

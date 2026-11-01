@@ -126,8 +126,12 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 ### Convenciones del proyecto
 
 - IDs `Long` con `GenerationType.IDENTITY`, como en el ejemplo de clase. No se usa UUID, aunque el diagrama de clases lo indique. Los IDs de otros módulos (`pedidoId`, `clienteId`, `comercioId`, `usuarioId`) también son `Long`.
-- Paquete base `ar.edu.uade.deliverygo.logistica`, con subpaquetes `model`, `dto`, `mapper`, `repository`, `service` y `excepcion`. Los paquetes `controller`, `client` y `config` se agregarán en el paso 2.
+- Paquete base `ar.edu.uade.deliverygo.logistica`, con subpaquetes `model`, `dto`, `mapper`, `repository`, `service`, `excepcion` y `client`. Los paquetes `controller` y `config` se agregarán en el paso 2.
 - DTO como clases con getters y setters, sin Lombok. Los requests tienen constructor vacío y setters; los responses tienen campos `final` y solo getters.
+- DTO: regla única en todo el módulo, como la filmina de la cátedra ("Validación en la Frontera") y la sección 15 de la especificación: lo que entra es un `...Request` validado con `@Valid`; lo que sale es un `...Response`. Se probó un único `RepartidorDTO` (DM-13, 01/11/2026) y se revirtió el mismo día para tener una sola regla y `@Valid` en todos los endpoints. `RepartidorResponse` incluye `dni` y `telefono` (DTO-02 de la especificación no los incluía).
+- Los requests no tienen campos que define el sistema (`id`, `estado`, `disponibilidad` en el alta, `fechaAlta`) ni datos de identidad (`repartidorId`/`usuarioId` en CU-02, CU-04 y CU-05, RN-10). `EntregaResponse` no tiene el código de confirmación (RN-13).
+- Validación de entrada (RN-01) con Bean Validation: anotaciones en los requests y `@Valid` en el controller. Las reglas que dependen de otro campo o de una consulta (RN-02, RN-03, RN-04, RN-05, RN-07, RN-10) van en el service o en la entidad. Las restricciones de la base (`nullable`, `unique`) se mantienen como defensa en profundidad.
+- RN-03 / INT-01: interfaz `client.UsuariosClient` implementada por `UsuariosClientMock` (usuarios 1 a 5 elegibles, 6 inactivo, 7 rol CLIENTE). Cuando exista el módulo Usuarios se agrega una implementación HTTP sin tocar el service.
 - Java 25 y Spring Boot 3.5.16. La sección 11 de la especificación menciona Java 21 y PostgreSQL; prevalece este archivo.
 - H2 en memoria (`jdbc:h2:mem:logistica`), `ddl-auto=create-drop`, `open-in-view=false` y consola en `/h2-console`.
 
@@ -160,22 +164,24 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
 
 - **Paso 1: repositorios y services, caso de uso por caso de uso.**
   - Repositorios REP-01 a REP-09: hechos.
-  - Services de CU-01 a CU-05: pendientes. El siguiente es CU-01.
+  - CU-01 (`RepartidorService.registrarRepartidor`): hecho, con `RepartidorServiceTest` y `RequestsValidacionTest`.
+  - CU-02 (`RepartidorService.cambiarDisponibilidad(id, dto, usuarioId)`): hecho, con tests en `RepartidorServiceTest`. El `usuarioId` lo pasará el controller desde la autenticación (RN-10); el mecanismo sigue pendiente.
+  - Services de CU-03 a CU-05: pendientes. El siguiente es CU-03.
 - **Paso 2: controllers, DTO, errores e integraciones**, una vez comprobada la lógica.
-  - DTO-01 a DTO-09: hechos.
+  - DTO-01 a DTO-09: hechos, con anotaciones de Bean Validation en DTO-01, DTO-03 y DTO-09.
   - Pendientes: mappers, `GlobalExceptionHandler`, controllers, clients y springdoc.
 - **Paso 3: pruebas integrales y revisión de trazabilidad** entre casos de uso, reglas de negocio y código.
 
 ### Decisiones pendientes
 
-- RN-03: cómo simular el módulo Usuarios (mock de `UsuariosClient`) mientras no exista.
 - RN-10: mecanismo de autenticación (JWT o un mecanismo simplificado).
 - CU-03: qué `usuarioActorId` registrar en el historial cuando quien actúa es el módulo Pedidos.
 - Qué valor lleva `correlationId` en `ErrorResponse`.
-- Validación de entrada: manual en el service, como en el ejemplo, o con Bean Validation, como indica RN-01.
+- CU-01 A6: cuando exista el cliente HTTP real de Usuarios, traducir su falla a 503 `USERS_SERVICE_UNAVAILABLE` (el mock no falla nunca).
+- `GlobalExceptionHandler` (paso 2): traducir `MethodArgumentNotValidException` de Bean Validation a 400 `VALIDATION_ERROR`.
 
 ### Deuda técnica conocida
 
-- `RepartidorDTO` y la implementación actual de `RepartidorService` son anteriores al diseño. Se reemplazan al implementar CU-01.
+- La columna `patente` es `unique`. Si se registra una patente repetida, la base rechaza el insert con un error genérico (500), porque la especificación no define un código para ese caso. Revisarlo con CU-09.
 - `setEstado` y `setDisponibilidad` siguen siendo públicos en las entidades. Restringirlos al reescribir los services.
-- `VehiculoRepository`, `HistorialEstadoEntregaRepository`, `VehiculoService` y `HistorialEstadoEntregaService` no figuran en la especificación. Revisarlos en el paso 3.
+- `VehiculoRepository`, `HistorialEstadoEntregaRepository`, `VehiculoService` y `HistorialEstadoEntregaService` no figuran en la especificación. Revisarlos en el paso 3.

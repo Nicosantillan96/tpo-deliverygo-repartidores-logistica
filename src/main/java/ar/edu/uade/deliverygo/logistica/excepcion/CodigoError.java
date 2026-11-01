@@ -3,6 +3,12 @@ package ar.edu.uade.deliverygo.logistica.excepcion;
 // Codigos de error definidos en la especificacion (seccion 17)
 public enum CodigoError {
     VALIDATION_ERROR,
+    VEHICLE_PLATE_REQUIRED,
+    COURIER_DNI_DUPLICATED,
+    COURIER_ALREADY_REGISTERED,
+    USER_NOT_ELIGIBLE,
+    FORBIDDEN,
+    COURIER_NOT_FOUND,
     COURIER_INACTIVE,
     COURIER_NOT_AVAILABLE,
     COURIER_HAS_ACTIVE_DELIVERY,

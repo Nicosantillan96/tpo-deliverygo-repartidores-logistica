@@ -1,13 +1,35 @@
 package ar.edu.uade.deliverygo.logistica.dto;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+
 // DTO-01: entrada de POST /api/v1/couriers (CU-01)
+// RN-01: las anotaciones se validan en la frontera, cuando el controller recibe
+// el request con @Valid. No tiene id, estado, disponibilidad ni fechaAlta:
+// esos datos los define el sistema, asi que el cliente no puede mandarlos
 public class RegistrarRepartidorRequest {
 
+    @NotNull(message = "El usuarioId es obligatorio")
     private Long usuarioId;
+
+    @NotBlank(message = "El nombre es obligatorio")
     private String nombre;
+
+    @NotBlank(message = "El apellido es obligatorio")
     private String apellido;
+
+    @NotBlank(message = "El DNI es obligatorio")
+    @Pattern(regexp = "\\d{7,8}", message = "El DNI debe tener 7 u 8 dígitos, sin puntos")
     private String dni;
+
+    @NotBlank(message = "El teléfono es obligatorio")
     private String telefono;
+
+    // @Valid hace que tambien se validen las anotaciones de VehiculoDTO
+    @NotNull(message = "El vehículo es obligatorio")
+    @Valid
     private VehiculoDTO vehiculo;
 
     public RegistrarRepartidorRequest() {
