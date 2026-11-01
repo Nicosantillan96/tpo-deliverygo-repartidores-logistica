@@ -1,9 +1,11 @@
 package ar.edu.uade.deliverygo.logistica.service;
 
+import ar.edu.uade.deliverygo.logistica.client.AnaliticaClient;
 import ar.edu.uade.deliverygo.logistica.client.NotificacionesClient;
 import ar.edu.uade.deliverygo.logistica.client.PedidoExterno;
 import ar.edu.uade.deliverygo.logistica.client.PedidosClient;
 import ar.edu.uade.deliverygo.logistica.dto.AsignarEntregaRequest;
+import ar.edu.uade.deliverygo.logistica.dto.ConfirmarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
@@ -49,15 +51,18 @@ public class EntregaService {
     private final RepartidorRepository repartidorRepository;
     private final PedidosClient pedidosClient;
     private final NotificacionesClient notificacionesClient;
+    private final AnaliticaClient analiticaClient;
 
     public EntregaService(EntregaRepository entregaRepository,
                           RepartidorRepository repartidorRepository,
                           PedidosClient pedidosClient,
-                          NotificacionesClient notificacionesClient) {
+                          NotificacionesClient notificacionesClient,
+                          AnaliticaClient analiticaClient) {
         this.entregaRepository = entregaRepository;
         this.repartidorRepository = repartidorRepository;
         this.pedidosClient = pedidosClient;
         this.notificacionesClient = notificacionesClient;
+        this.analiticaClient = analiticaClient;
     }
 
     // SRV-03 / CU-03: asignar repartidor a una entrega
@@ -135,6 +140,51 @@ public class EntregaService {
         avisarSinRevertir("retiro de la entrega " + guardada.getId() + " a Notificaciones",
                 () -> notificacionesClient.avisarRetiro(guardada.getId(),
                         guardada.getClienteId()));
+
+        return convertirResponse(guardada);
+    }
+
+    // SRV-05 / CU-05: confirmar entrega del pedido
+    // usuarioId es el usuario autenticado; lo pasa el controller (RN-10).
+    // Que el codigo venga se valida en la frontera con @Valid
+    @Transactional
+    public EntregaResponse confirmarEntrega(Long entregaId, ConfirmarEntregaRequest request,
+                                            Long usuarioId) {
+
+        // REP-07
+        Entrega entrega = buscarEntidadPorId(entregaId);
+
+        // RN-10: solo el repartidor asignado confirma la entrega
+        validarRepartidorAsignado(entrega, usuarioId);
+
+        // La entidad aplica, en este orden:
+        // RN-09: si sigue ASIGNADA (no se retiro) -> DELIVERY_NOT_PICKED_UP
+        // RN-08: si ya esta COMPLETADA o CANCELADA -> DELIVERY_INVALID_STATE
+        // RN-13: si el codigo no coincide -> INVALID_CONFIRMATION_CODE (la entrega no cambia)
+        // y si todo esta bien la pasa a COMPLETADA y libera al repartidor (RN-07)
+        EstadoEntrega anterior = entrega.getEstado();
+        entrega.completar(request.getCodigoConfirmacion());
+
+        // RN-12: el actor es el repartidor que confirmo la entrega
+        registrarCambioEstado(entrega, anterior, usuarioId, request.getObservacion());
+
+        // REP-08 (repartidor DISPONIBLE, con @Version) y REP-09
+        Repartidor repartidor = entrega.getRepartidor();
+        repartidorRepository.save(repartidor);
+        Entrega guardada = entregaRepository.save(entrega);
+
+        // INT-04, INT-05 e INT-06: avisos no bloqueantes (DM-12)
+        avisarSinRevertir("entrega " + guardada.getId() + " completada a Pedidos",
+                () -> pedidosClient.informarEstadoEntrega(guardada.getPedidoId(),
+                        guardada.getEstado()));
+        avisarSinRevertir("entrega " + guardada.getId() + " completada a Notificaciones",
+                () -> notificacionesClient.avisarEntrega(guardada.getId(),
+                        guardada.getClienteId()));
+        avisarSinRevertir("entrega " + guardada.getId() + " completada a Analitica",
+                () -> analiticaClient.registrarEntregaCompletada(guardada.getId(),
+                        repartidor.getId(), guardada.getFechaCreacion(),
+                        guardada.getFechaAsignacion(), guardada.getFechaRetiro(),
+                        guardada.getFechaEntrega()));
 
         return convertirResponse(guardada);
     }

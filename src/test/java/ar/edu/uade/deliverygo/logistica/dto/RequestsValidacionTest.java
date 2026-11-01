@@ -88,6 +88,19 @@ class RequestsValidacionTest {
                 .containsExactly("observacion");
     }
 
+    // ---------- DTO-07 ConfirmarEntregaRequest (CU-05) ----------
+
+    @Test
+    void unaConfirmacionConCodigoNoTieneErrores() {
+        assertThat(camposConError(new ConfirmarEntregaRequest("4821", null))).isEmpty();
+    }
+
+    @Test
+    void elCodigoDeConfirmacionEsObligatorio() {
+        assertThat(camposConError(new ConfirmarEntregaRequest("  ", null)))
+                .containsExactly("codigoConfirmacion");
+    }
+
     private Set<String> camposConError(Object request) {
         return validator.validate(request).stream()
                 .map(ConstraintViolation::getPropertyPath)
