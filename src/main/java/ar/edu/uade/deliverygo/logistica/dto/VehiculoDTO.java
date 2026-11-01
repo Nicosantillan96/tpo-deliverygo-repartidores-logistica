@@ -1,11 +1,17 @@
 package ar.edu.uade.deliverygo.logistica.dto;
 
 import ar.edu.uade.deliverygo.logistica.model.TipoVehiculo;
+import jakarta.validation.constraints.NotNull;
 
 // DTO-09: se usa anidado en RegistrarRepartidorRequest y RepartidorResponse
+// Las anotaciones solo se aplican en la entrada (RegistrarRepartidorRequest con @Valid)
 public class VehiculoDTO {
 
+    @NotNull(message = "El tipo de vehículo es obligatorio")
     private TipoVehiculo tipo;
+
+    // Obligatoria solo para MOTO y AUTO (RN-04). Como depende del tipo,
+    // no alcanza con una anotacion: la valida el service
     private String patente;
     private String descripcion;
 
