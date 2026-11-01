@@ -179,7 +179,8 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
 - **Paso 2: controllers, DTO, errores e integraciones**, una vez comprobada la lógica.
   - DTO-01 a DTO-09: hechos, con anotaciones de Bean Validation en DTO-01, DTO-03 y DTO-09.
   - `GlobalExceptionHandler`: hecho, con `GlobalExceptionHandlerTest`.
-  - Pendientes: controllers, springdoc y `DemoDataLoader`.
+  - Controllers: hechos. `RepartidorController` (API-01 POST /api/v1/couriers → 201, API-02 PATCH /api/v1/couriers/{id}/availability → 200) y `EntregaController` (API-03 POST /api/v1/deliveries/assign → 201 o 202, API-04 POST /{id}/pickup → 200 con body opcional, API-05 POST /{id}/complete → 200). Probados de punta a punta con MockMvc en `RepartidorControllerTest` y `EntregaControllerTest`.
+  - Pendientes: springdoc y `DemoDataLoader`.
 - **Paso 3: pruebas integrales y revisión de trazabilidad** entre casos de uso, reglas de negocio y código.
 
 ### Decisiones pendientes
