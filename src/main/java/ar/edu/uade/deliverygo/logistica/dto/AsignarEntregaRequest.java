@@ -1,15 +1,30 @@
 package ar.edu.uade.deliverygo.logistica.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 // DTO-04: entrada de POST /api/v1/deliveries/assign (CU-03)
 // repartidorId es opcional: lo usa un administrador para elegir un
 // repartidor puntual (DM-07). No identifica a quien hace la solicitud
+// RN-01: las anotaciones se validan en la frontera con @Valid
 public class AsignarEntregaRequest {
 
+    @NotNull(message = "El pedidoId es obligatorio")
     private Long pedidoId;
+
+    @NotNull(message = "El clienteId es obligatorio")
     private Long clienteId;
+
+    @NotNull(message = "El comercioId es obligatorio")
     private Long comercioId;
+
+    @NotBlank(message = "La dirección de retiro es obligatoria")
     private String direccionRetiro;
+
+    @NotBlank(message = "La dirección de entrega es obligatoria")
     private String direccionEntrega;
+
+    // Opcional
     private Long repartidorId;
 
     public AsignarEntregaRequest() {
