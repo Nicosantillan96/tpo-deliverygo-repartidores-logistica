@@ -1,9 +1,12 @@
 package ar.edu.uade.deliverygo.logistica.service;
 
+import ar.edu.uade.deliverygo.logistica.client.AnaliticaClient;
+import ar.edu.uade.deliverygo.logistica.client.AnaliticaClientMock;
 import ar.edu.uade.deliverygo.logistica.client.NotificacionesClient;
 import ar.edu.uade.deliverygo.logistica.client.NotificacionesClientMock;
 import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.dto.AsignarEntregaRequest;
+import ar.edu.uade.deliverygo.logistica.dto.ConfirmarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
@@ -27,10 +30,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// CU-03 y CU-04: usan la base H2 real y los mocks de Pedidos (100 a 105 CONFIRMADOS,
+// CU-03, CU-04 y CU-05: usan la base H2 real y los mocks de Pedidos (100 a 105 CONFIRMADOS,
 // 106 PENDIENTE, el resto no existe) y Notificaciones. Cada test se revierte al terminar
 @DataJpaTest
-@Import({EntregaService.class, PedidosClientMock.class, NotificacionesClientMock.class})
+@Import({EntregaService.class, PedidosClientMock.class, NotificacionesClientMock.class,
+        AnaliticaClientMock.class})
 class EntregaServiceTest {
 
     @Autowired
@@ -271,7 +275,130 @@ class EntregaServiceTest {
         assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.RETIRADA);
     }
 
+    // ---------- CU-05: confirmar entrega ----------
+    // La entrega de prueba queda RETIRADA por el repartidor del usuario 1
+
+    @Test
+    void conElCodigoCorrectoLaEntregaSeCompleta() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        EntregaResponse resultado = entregaService.confirmarEntrega(
+                entregaId, confirmacion(codigoDe(entregaId)), 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.COMPLETADA);
+        assertThat(resultado.getFechaEntrega()).isNotNull();
+        // RN-07: el repartidor vuelve a DISPONIBLE
+        Repartidor repartidor = entregaRepository.findById(entregaId).orElseThrow().getRepartidor();
+        assertThat(repartidor.getDisponibilidad()).isEqualTo(Disponibilidad.DISPONIBLE);
+    }
+
+    // RN-12: creacion, asignacion, retiro y entrega
+    @Test
+    void laConfirmacionQuedaEnElHistorialConElRepartidorComoActor() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        entregaService.confirmarEntrega(entregaId, confirmacion(codigoDe(entregaId)), 1L);
+
+        List<HistorialEstadoEntrega> historial =
+                entregaRepository.findById(entregaId).orElseThrow().getHistorial();
+        HistorialEstadoEntrega ultimo = historial.get(historial.size() - 1);
+        assertThat(historial).hasSize(4);
+        assertThat(ultimo.getEstadoAnterior()).isEqualTo(EstadoEntrega.RETIRADA);
+        assertThat(ultimo.getEstadoNuevo()).isEqualTo(EstadoEntrega.COMPLETADA);
+        assertThat(ultimo.getUsuarioActorId()).isEqualTo(1L);
+    }
+
+    // RN-07: al quedar libre, el repartidor puede recibir otra entrega
+    @Test
+    void elRepartidorLiberadoPuedeRecibirOtraEntrega() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+        entregaService.confirmarEntrega(entregaId, confirmacion(codigoDe(entregaId)), 1L);
+
+        EntregaResponse otra = entregaService.asignarRepartidor(pedido(101L));
+
+        assertThat(otra.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
+    }
+
+    // RN-13: con un codigo incorrecto la entrega no cambia de estado
+    @Test
+    void conUnCodigoIncorrectoLaEntregaNoCambia() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+        String incorrecto = "0000".equals(codigoDe(entregaId)) ? "1111" : "0000";
+
+        assertErrorConfirmacion(entregaId, incorrecto, 1L, CodigoError.INVALID_CONFIRMATION_CODE);
+        assertThat(entregaRepository.findById(entregaId).orElseThrow().getEstado())
+                .isEqualTo(EstadoEntrega.RETIRADA);
+    }
+
+    // RN-09
+    @Test
+    void noSePuedeConfirmarUnaEntregaQueNoFueRetirada() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        assertErrorConfirmacion(entregaId, codigoDe(entregaId), 1L,
+                CodigoError.DELIVERY_NOT_PICKED_UP);
+    }
+
+    // RN-08
+    @Test
+    void noSePuedeConfirmarDosVeces() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+        entregaService.confirmarEntrega(entregaId, confirmacion(codigoDe(entregaId)), 1L);
+
+        assertErrorConfirmacion(entregaId, codigoDe(entregaId), 1L,
+                CodigoError.DELIVERY_INVALID_STATE);
+    }
+
+    // RN-10
+    @Test
+    void otroUsuarioNoPuedeConfirmarLaEntrega() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        assertErrorConfirmacion(entregaId, codigoDe(entregaId), 2L,
+                CodigoError.COURIER_NOT_ASSIGNED);
+    }
+
+    @Test
+    void confirmarUnaEntregaInexistenteDa404() {
+        assertErrorConfirmacion(999L, "1234", 1L, CodigoError.DELIVERY_NOT_FOUND);
+    }
+
+    // DM-12
+    @Test
+    void siFallanLosAvisosLaEntregaNoSeRevierte() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        EntregaResponse resultado = serviceConAvisosQueFallan().confirmarEntrega(
+                entregaId, confirmacion(codigoDe(entregaId)), 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.COMPLETADA);
+    }
+
     // ---------- helpers ----------
+
+    private Long entregaRetiradaPorElUsuario1() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+        entregaService.registrarRetiro(entregaId, new RegistrarRetiroRequest(), 1L);
+        return entregaId;
+    }
+
+    // El codigo no sale en la respuesta (RN-13); en el test se lee de la entidad,
+    // como si el cliente se lo dictara al repartidor
+    private String codigoDe(Long entregaId) {
+        return entregaRepository.findById(entregaId).orElseThrow().getCodigoConfirmacion();
+    }
+
+    private ConfirmarEntregaRequest confirmacion(String codigo) {
+        return new ConfirmarEntregaRequest(codigo, null);
+    }
+
+    private void assertErrorConfirmacion(Long entregaId, String codigo, Long usuarioId,
+                                         CodigoError esperado) {
+        assertThatThrownBy(() -> entregaService.confirmarEntrega(
+                entregaId, confirmacion(codigo), usuarioId))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(esperado);
+    }
 
     private Long entregaAsignadaAlUsuario1() {
         repartidorDisponible(1L, "1", null);
@@ -289,7 +416,8 @@ class EntregaServiceTest {
     // buscarPedido sigue funcionando porque se hereda del mock
     private EntregaService serviceConAvisosQueFallan() {
         return new EntregaService(entregaRepository, repartidorRepository,
-                new PedidosQueFallanAlInformar(), new NotificacionesQueFallan());
+                new PedidosQueFallanAlInformar(), new NotificacionesQueFallan(),
+                new AnaliticaQueFalla());
     }
 
     private static class PedidosQueFallanAlInformar extends PedidosClientMock {
@@ -309,6 +437,22 @@ class EntregaServiceTest {
         @Override
         public void avisarRetiro(Long entregaId, Long clienteId) {
             throw new IllegalStateException("Notificaciones no responde");
+        }
+
+        @Override
+        public void avisarEntrega(Long entregaId, Long clienteId) {
+            throw new IllegalStateException("Notificaciones no responde");
+        }
+    }
+
+    private static class AnaliticaQueFalla implements AnaliticaClient {
+        @Override
+        public void registrarEntregaCompletada(Long entregaId, Long repartidorId,
+                                               LocalDateTime fechaCreacion,
+                                               LocalDateTime fechaAsignacion,
+                                               LocalDateTime fechaRetiro,
+                                               LocalDateTime fechaEntrega) {
+            throw new IllegalStateException("Analitica no responde");
         }
     }
 
