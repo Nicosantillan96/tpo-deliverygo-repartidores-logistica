@@ -1,9 +1,11 @@
 package ar.edu.uade.deliverygo.logistica.service;
 
+import ar.edu.uade.deliverygo.logistica.client.NotificacionesClient;
 import ar.edu.uade.deliverygo.logistica.client.NotificacionesClientMock;
 import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.dto.AsignarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
+import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
 import ar.edu.uade.deliverygo.logistica.excepcion.ReglaNegocioException;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
@@ -25,7 +27,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// CU-03: usa la base H2 real y los mocks de Pedidos (100 a 105 CONFIRMADOS,
+// CU-03 y CU-04: usan la base H2 real y los mocks de Pedidos (100 a 105 CONFIRMADOS,
 // 106 PENDIENTE, el resto no existe) y Notificaciones. Cada test se revierte al terminar
 @DataJpaTest
 @Import({EntregaService.class, PedidosClientMock.class, NotificacionesClientMock.class})
@@ -39,9 +41,6 @@ class EntregaServiceTest {
 
     @Autowired
     private RepartidorRepository repartidorRepository;
-
-    @Autowired
-    private PedidosClientMock pedidosClient;
 
     // ---------- asignacion automatica ----------
 
@@ -183,20 +182,135 @@ class EntregaServiceTest {
 
     @Test
     void siFallaElAvisoLaAsignacionNoSeRevierte() {
-        // Service armado a mano con un cliente de Notificaciones que siempre falla
-        EntregaService conAvisoQueFalla = new EntregaService(entregaRepository,
-                repartidorRepository, pedidosClient,
-                (entregaId, repartidorId, clienteId, codigo) -> {
-                    throw new IllegalStateException("Notificaciones no responde");
-                });
         repartidorDisponible(1L, "1", null);
 
-        EntregaResponse resultado = conAvisoQueFalla.asignarRepartidor(pedido(100L));
+        EntregaResponse resultado = serviceConAvisosQueFallan().asignarRepartidor(pedido(100L));
 
         assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
     }
 
+    // ---------- CU-04: registrar retiro ----------
+    // La entrega de prueba queda asignada al repartidor del usuario 1
+
+    @Test
+    void elRepartidorAsignadoRegistraElRetiro() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        EntregaResponse resultado = entregaService.registrarRetiro(
+                entregaId, new RegistrarRetiroRequest("Retirado en mostrador"), 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.RETIRADA);
+        assertThat(resultado.getFechaRetiro()).isNotNull();
+    }
+
+    // RN-12: el actor del retiro es el repartidor y se guarda la observacion
+    @Test
+    void elRetiroQuedaEnElHistorialConElRepartidorComoActor() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        entregaService.registrarRetiro(entregaId, new RegistrarRetiroRequest("Retirado"), 1L);
+
+        List<HistorialEstadoEntrega> historial =
+                entregaRepository.findById(entregaId).orElseThrow().getHistorial();
+        HistorialEstadoEntrega ultimo = historial.get(historial.size() - 1);
+        assertThat(historial).hasSize(3);
+        assertThat(ultimo.getEstadoAnterior()).isEqualTo(EstadoEntrega.ASIGNADA);
+        assertThat(ultimo.getEstadoNuevo()).isEqualTo(EstadoEntrega.RETIRADA);
+        assertThat(ultimo.getUsuarioActorId()).isEqualTo(1L);
+        assertThat(ultimo.getObservacion()).isEqualTo("Retirado");
+    }
+
+    @Test
+    void elRetiroSinObservacionEsValido() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        EntregaResponse resultado = entregaService.registrarRetiro(
+                entregaId, new RegistrarRetiroRequest(), 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.RETIRADA);
+    }
+
+    @Test
+    void retirarUnaEntregaInexistenteDa404() {
+        assertErrorRetiro(999L, 1L, CodigoError.DELIVERY_NOT_FOUND);
+    }
+
+    // RN-10
+    @Test
+    void otroUsuarioNoPuedeRegistrarElRetiro() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        assertErrorRetiro(entregaId, 2L, CodigoError.COURIER_NOT_ASSIGNED);
+    }
+
+    // RN-10: una entrega PENDIENTE no tiene repartidor asignado
+    @Test
+    void noSePuedeRetirarUnaEntregaSinRepartidor() {
+        Long entregaId = entregaService.asignarRepartidor(pedido(100L)).getId();
+
+        assertErrorRetiro(entregaId, 1L, CodigoError.COURIER_NOT_ASSIGNED);
+    }
+
+    // RN-08: no se puede retirar dos veces
+    @Test
+    void noSePuedeRetirarDosVeces() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+        entregaService.registrarRetiro(entregaId, new RegistrarRetiroRequest(), 1L);
+
+        assertErrorRetiro(entregaId, 1L, CodigoError.DELIVERY_INVALID_STATE);
+    }
+
+    // DM-12
+    @Test
+    void siFallanLosAvisosElRetiroNoSeRevierte() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        EntregaResponse resultado = serviceConAvisosQueFallan().registrarRetiro(
+                entregaId, new RegistrarRetiroRequest(), 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.RETIRADA);
+    }
+
     // ---------- helpers ----------
+
+    private Long entregaAsignadaAlUsuario1() {
+        repartidorDisponible(1L, "1", null);
+        return entregaService.asignarRepartidor(pedido(100L)).getId();
+    }
+
+    private void assertErrorRetiro(Long entregaId, Long usuarioId, CodigoError esperado) {
+        assertThatThrownBy(() -> entregaService.registrarRetiro(
+                entregaId, new RegistrarRetiroRequest(), usuarioId))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(esperado);
+    }
+
+    // Service armado a mano con clientes cuyos avisos siempre fallan (DM-12).
+    // buscarPedido sigue funcionando porque se hereda del mock
+    private EntregaService serviceConAvisosQueFallan() {
+        return new EntregaService(entregaRepository, repartidorRepository,
+                new PedidosQueFallanAlInformar(), new NotificacionesQueFallan());
+    }
+
+    private static class PedidosQueFallanAlInformar extends PedidosClientMock {
+        @Override
+        public void informarEstadoEntrega(Long pedidoId, EstadoEntrega estado) {
+            throw new IllegalStateException("Pedidos no responde");
+        }
+    }
+
+    private static class NotificacionesQueFallan implements NotificacionesClient {
+        @Override
+        public void avisarAsignacion(Long entregaId, Long repartidorId, Long clienteId,
+                                     String codigoConfirmacion) {
+            throw new IllegalStateException("Notificaciones no responde");
+        }
+
+        @Override
+        public void avisarRetiro(Long entregaId, Long clienteId) {
+            throw new IllegalStateException("Notificaciones no responde");
+        }
+    }
 
     // Verifica el codigo de error y que no se haya creado ninguna entrega nueva
     private void assertError(AsignarEntregaRequest request, CodigoError esperado) {

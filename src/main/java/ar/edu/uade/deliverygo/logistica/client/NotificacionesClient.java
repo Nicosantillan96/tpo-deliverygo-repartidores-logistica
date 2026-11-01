@@ -9,4 +9,7 @@ public interface NotificacionesClient {
     // el codigo de confirmacion (RN-13)
     void avisarAsignacion(Long entregaId, Long repartidorId, Long clienteId,
                           String codigoConfirmacion);
+
+    // CU-04: avisa al cliente que el repartidor retiro el pedido
+    void avisarRetiro(Long entregaId, Long clienteId);
 }

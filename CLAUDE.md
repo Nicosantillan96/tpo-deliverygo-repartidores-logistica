@@ -132,7 +132,7 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 - Los requests no tienen campos que define el sistema (`id`, `estado`, `disponibilidad` en el alta, `fechaAlta`) ni datos de identidad (`repartidorId`/`usuarioId` en CU-02, CU-04 y CU-05, RN-10). `EntregaResponse` no tiene el código de confirmación (RN-13).
 - Validación de entrada (RN-01) con Bean Validation: anotaciones en los requests y `@Valid` en el controller. Las reglas que dependen de otro campo o de una consulta (RN-02, RN-03, RN-04, RN-05, RN-07, RN-10) van en el service o en la entidad. Las restricciones de la base (`nullable`, `unique`) se mantienen como defensa en profundidad.
 - RN-03 / INT-01: interfaz `client.UsuariosClient` implementada por `UsuariosClientMock` (usuarios 1 a 5 elegibles, 6 inactivo, 7 rol CLIENTE). Cuando exista el módulo Usuarios se agrega una implementación HTTP sin tocar el service.
-- INT-03 y INT-05: `PedidosClient` + `PedidosClientMock` (pedidos 100 a 105 CONFIRMADOS, 106 PENDIENTE, el resto no existe) y `NotificacionesClient` + `NotificacionesClientMock` (solo loguea). Los avisos a Notificaciones no revierten la operación si fallan (DM-12): se capturan y se loguean.
+- INT-03 y INT-05: `PedidosClient` + `PedidosClientMock` (pedidos 100 a 105 CONFIRMADOS, 106 PENDIENTE, el resto no existe) y `NotificacionesClient` + `NotificacionesClientMock` (solo loguea). `PedidosClient.informarEstadoEntrega` cubre INT-04 (endpoint a acordar con Pedidos). Los avisos a Pedidos y Notificaciones no revierten la operación si fallan (DM-12): `EntregaService.avisarSinRevertir` los captura y los loguea. DM-12 decía reintentar hasta 3 veces; no se implementó el reintento.
 - Historial (RN-12): cuando el cambio lo hace el sistema o el módulo Pedidos se registra `EntregaService.ACTOR_SISTEMA = 0L`. El primer registro de cada entrega tiene `estadoAnterior = null`.
 - DM-09 simplificado: solo `@Version` en `Repartidor`, sin reintento automático. Si dos asignaciones toman al mismo repartidor, la segunda falla al guardar (`ObjectOptimisticLockingFailureException`) y el `GlobalExceptionHandler` deberá responder 409; Pedidos puede volver a pedir la asignación.
 - Código de confirmación: 4 dígitos con `SecureRandom`, generado en `EntregaService` y pasado a `Entrega.asignar`.
@@ -171,7 +171,8 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
   - CU-01 (`RepartidorService.registrarRepartidor`): hecho, con `RepartidorServiceTest` y `RequestsValidacionTest`.
   - CU-02 (`RepartidorService.cambiarDisponibilidad(id, dto, usuarioId)`): hecho, con tests en `RepartidorServiceTest`. El `usuarioId` lo pasará el controller desde la autenticación (RN-10); el mecanismo sigue pendiente.
   - CU-03 (`EntregaService.asignarRepartidor`): hecho, con `EntregaServiceTest`. Devuelve la entrega ASIGNADA (el controller responderá 201) o PENDIENTE_ASIGNACION si no hay repartidores (202).
-  - Services de CU-04 y CU-05: pendientes. El siguiente es CU-04.
+  - CU-04 (`EntregaService.registrarRetiro(id, request, usuarioId)`): hecho, con tests en `EntregaServiceTest`. El actor del historial es el `usuarioId` del repartidor.
+  - Service de CU-05: pendiente.
 - **Paso 2: controllers, DTO, errores e integraciones**, una vez comprobada la lógica.
   - DTO-01 a DTO-09: hechos, con anotaciones de Bean Validation en DTO-01, DTO-03 y DTO-09.
   - Pendientes: mappers, `GlobalExceptionHandler`, controllers, clients y springdoc.

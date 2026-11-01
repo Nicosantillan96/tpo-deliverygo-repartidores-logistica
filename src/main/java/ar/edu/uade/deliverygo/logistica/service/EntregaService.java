@@ -5,6 +5,7 @@ import ar.edu.uade.deliverygo.logistica.client.PedidoExterno;
 import ar.edu.uade.deliverygo.logistica.client.PedidosClient;
 import ar.edu.uade.deliverygo.logistica.dto.AsignarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
+import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
 import ar.edu.uade.deliverygo.logistica.excepcion.ReglaNegocioException;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
@@ -95,9 +96,63 @@ public class EntregaService {
         Entrega guardada = entregaRepository.save(entrega);
 
         // INT-05: avisos no bloqueantes (DM-12)
-        avisarAsignacion(guardada);
+        avisarSinRevertir("asignacion de la entrega " + guardada.getId(),
+                () -> notificacionesClient.avisarAsignacion(guardada.getId(),
+                        repartidor.getId(), guardada.getClienteId(),
+                        guardada.getCodigoConfirmacion()));
 
         return convertirResponse(guardada);
+    }
+
+    // SRV-04 / CU-04: registrar retiro del pedido
+    // usuarioId es el usuario autenticado; lo pasa el controller (RN-10).
+    // La observacion es opcional; su largo se valida en la frontera con @Valid
+    @Transactional
+    public EntregaResponse registrarRetiro(Long entregaId, RegistrarRetiroRequest request,
+                                           Long usuarioId) {
+
+        // REP-07
+        Entrega entrega = buscarEntidadPorId(entregaId);
+
+        // RN-10: solo el repartidor asignado registra el retiro
+        validarRepartidorAsignado(entrega, usuarioId);
+
+        // RN-08: ASIGNADA -> RETIRADA (la entidad rechaza cualquier otro estado
+        // con DELIVERY_INVALID_STATE) y registra la fecha de retiro
+        EstadoEntrega anterior = entrega.getEstado();
+        entrega.registrarRetiro();
+
+        // RN-12: el actor es el repartidor que hizo el retiro
+        registrarCambioEstado(entrega, anterior, usuarioId, request.getObservacion());
+
+        // REP-09
+        Entrega guardada = entregaRepository.save(entrega);
+
+        // INT-04 e INT-05: avisos no bloqueantes (DM-12)
+        avisarSinRevertir("retiro de la entrega " + guardada.getId() + " a Pedidos",
+                () -> pedidosClient.informarEstadoEntrega(guardada.getPedidoId(),
+                        guardada.getEstado()));
+        avisarSinRevertir("retiro de la entrega " + guardada.getId() + " a Notificaciones",
+                () -> notificacionesClient.avisarRetiro(guardada.getId(),
+                        guardada.getClienteId()));
+
+        return convertirResponse(guardada);
+    }
+
+    private Entrega buscarEntidadPorId(Long entregaId) {
+        return entregaRepository.findById(entregaId).orElseThrow(
+                () -> new ReglaNegocioException(CodigoError.DELIVERY_NOT_FOUND,
+                        "No existe la entrega " + entregaId));
+    }
+
+    // RN-10: el usuario autenticado tiene que ser el repartidor asignado a la entrega.
+    // Si la entrega todavia no tiene repartidor, nadie esta asignado
+    private void validarRepartidorAsignado(Entrega entrega, Long usuarioId) {
+        Repartidor asignado = entrega.getRepartidor();
+        if (Objects.isNull(asignado) || !Objects.equals(asignado.getUsuarioId(), usuarioId)) {
+            throw new ReglaNegocioException(CodigoError.COURIER_NOT_ASSIGNED,
+                    "El usuario no es el repartidor asignado a la entrega " + entrega.getId());
+        }
     }
 
     // RN-11 / INT-03
@@ -180,16 +235,15 @@ public class EntregaService {
         entrega.agregarHistorial(registro);
     }
 
-    // INT-05 / DM-12: si Notificaciones falla, la asignacion no se revierte;
-    // el fallo queda registrado en el log
-    private void avisarAsignacion(Entrega entrega) {
+    // DM-12: los avisos a otros modulos (Pedidos, Notificaciones) no revierten la
+    // operacion si fallan; el fallo queda registrado en el log.
+    // aviso es una lambda con la llamada al cliente, por ejemplo
+    // () -> notificacionesClient.avisarRetiro(...)
+    private void avisarSinRevertir(String descripcion, Runnable aviso) {
         try {
-            notificacionesClient.avisarAsignacion(entrega.getId(),
-                    entrega.getRepartidor().getId(), entrega.getClienteId(),
-                    entrega.getCodigoConfirmacion());
+            aviso.run();
         } catch (RuntimeException e) {
-            log.warn("No se pudo avisar la asignacion de la entrega {}: {}",
-                    entrega.getId(), e.getMessage());
+            log.warn("No se pudo avisar {}: {}", descripcion, e.getMessage());
         }
     }
 

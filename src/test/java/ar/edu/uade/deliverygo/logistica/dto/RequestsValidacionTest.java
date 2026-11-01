@@ -75,6 +75,19 @@ class RequestsValidacionTest {
                 "pedidoId", "clienteId", "comercioId", "direccionRetiro", "direccionEntrega");
     }
 
+    // ---------- DTO-06 RegistrarRetiroRequest (CU-04) ----------
+
+    @Test
+    void elRetiroSinObservacionNoTieneErrores() {
+        assertThat(camposConError(new RegistrarRetiroRequest())).isEmpty();
+    }
+
+    @Test
+    void laObservacionDelRetiroNoPuedePasarDe255Caracteres() {
+        assertThat(camposConError(new RegistrarRetiroRequest("x".repeat(256))))
+                .containsExactly("observacion");
+    }
+
     private Set<String> camposConError(Object request) {
         return validator.validate(request).stream()
                 .map(ConstraintViolation::getPropertyPath)
