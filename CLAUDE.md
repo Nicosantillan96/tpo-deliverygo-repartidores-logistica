@@ -126,7 +126,7 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 ### Convenciones del proyecto
 
 - IDs `Long` con `GenerationType.IDENTITY`, como en el ejemplo de clase. No se usa UUID, aunque el diagrama de clases lo indique. Los IDs de otros módulos (`pedidoId`, `clienteId`, `comercioId`, `usuarioId`) también son `Long`.
-- Paquete base `ar.edu.uade.deliverygo.logistica`, con subpaquetes `model`, `dto`, `mapper`, `repository`, `service`, `excepcion` y `client`. Los paquetes `controller` y `config` se agregarán en el paso 2.
+- Paquete base `ar.edu.uade.deliverygo.logistica`, con subpaquetes `model`, `dto`, `repository`, `service`, `excepcion`, `client` y `controller`. No hay paquete `mapper`: la conversión entidad → Response la hace cada service (`convertirResponse`), como `convertirDTO` en el ejemplo de clase (decisión del 01/11/2026; la especificación preveía `RepartidorMapper` y `EntregaMapper`).
 - DTO como clases con getters y setters, sin Lombok. Los requests tienen constructor vacío y setters; los responses tienen campos `final` y solo getters.
 - DTO: regla única en todo el módulo, como la filmina de la cátedra ("Validación en la Frontera") y la sección 15 de la especificación: lo que entra es un `...Request` validado con `@Valid`; lo que sale es un `...Response`. Se probó un único `RepartidorDTO` (DM-13, 01/11/2026) y se revirtió el mismo día para tener una sola regla y `@Valid` en todos los endpoints. `RepartidorResponse` incluye `dni` y `telefono` (DTO-02 de la especificación no los incluía).
 - Los requests no tienen campos que define el sistema (`id`, `estado`, `disponibilidad` en el alta, `fechaAlta`) ni datos de identidad (`repartidorId`/`usuarioId` en CU-02, CU-04 y CU-05, RN-10). `EntregaResponse` no tiene el código de confirmación (RN-13).
@@ -134,7 +134,7 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 - RN-03 / INT-01: interfaz `client.UsuariosClient` implementada por `UsuariosClientMock` (usuarios 1 a 5 elegibles, 6 inactivo, 7 rol CLIENTE). Cuando exista el módulo Usuarios se agrega una implementación HTTP sin tocar el service.
 - INT-03 y INT-05: `PedidosClient` + `PedidosClientMock` (pedidos 100 a 105 CONFIRMADOS, 106 PENDIENTE, el resto no existe) `NotificacionesClient` + `NotificacionesClientMock` y `AnaliticaClient` + `AnaliticaClientMock` (INT-06, evento DELIVERY_COMPLETED con los tiempos); los mocks de avisos solo loguean. `PedidosClient.informarEstadoEntrega` cubre INT-04 (endpoint a acordar con Pedidos). Los avisos a Pedidos y Notificaciones no revierten la operación si fallan (DM-12): `EntregaService.avisarSinRevertir` los captura y los loguea. DM-12 decía reintentar hasta 3 veces; no se implementó el reintento.
 - Historial (RN-12): cuando el cambio lo hace el sistema o el módulo Pedidos se registra `EntregaService.ACTOR_SISTEMA = 0L`. El primer registro de cada entrega tiene `estadoAnterior = null`.
-- DM-09 simplificado: solo `@Version` en `Repartidor`, sin reintento automático. Si dos asignaciones toman al mismo repartidor, la segunda falla al guardar (`ObjectOptimisticLockingFailureException`) y el `GlobalExceptionHandler` deberá responder 409; Pedidos puede volver a pedir la asignación.
+- DM-09 simplificado: solo `@Version` en `Repartidor`, sin reintento automático. Si dos asignaciones toman al mismo repartidor, la segunda falla al guardar (`ObjectOptimisticLockingFailureException`) y el `GlobalExceptionHandler` responde 409 `CONCURRENT_UPDATE` (código no listado en la sección 17; CU-03 A6 pide 409 sin nombrarlo). Pedidos puede volver a pedir la asignación.
 - Código de confirmación: 4 dígitos con `SecureRandom`, generado en `EntregaService` y pasado a `Entrega.asignar`.
 - Java 25 y Spring Boot 3.5.16. La sección 11 de la especificación menciona Java 21 y PostgreSQL; prevalece este archivo.
 - H2 en memoria (`jdbc:h2:mem:logistica`), `ddl-auto=create-drop`, `open-in-view=false` y consola en `/h2-console`.
@@ -155,6 +155,8 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 - Los errores que puede provocar un usuario se lanzan como `ReglaNegocioException` con un `CodigoError`, que toma los códigos de la sección 17 de la especificación.
 - Los errores de programación se lanzan como `IllegalStateException` o `IllegalArgumentException`.
 - `ErrorResponse` usa los campos de la especificación: timestamp, status, code, message, path y correlationId. Los nombres del ejemplo de clase eran distintos (`error`, `mensaje`).
+- Cada `CodigoError` tiene su `HttpStatus` (sección 17). `GlobalExceptionHandler` traduce `ReglaNegocioException`, errores de `@Valid`, JSON inválido, parámetros de tipo inválido y header faltante (400 `VALIDATION_ERROR`) y el conflicto de `@Version` (409 `CONCURRENT_UPDATE`). `correlationId` es un UUID nuevo por error, que también se escribe en el log. Los errores no previstos (500) y los propios de Spring (404 de URL inexistente, 405) los responde Spring con su formato.
+- RN-10: la identidad del usuario llega en el header `X-Usuario-Id`, que simula el `usuarioId` que vendría en el JWT de Usuarios. No es seguro (cualquiera puede mandar otro id); es una simplificación mientras no exista el módulo Usuarios. Los roles (ADMIN, REPARTIDOR) no se controlan.
 
 ### Tests
 
@@ -176,15 +178,14 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
   - **Paso 1 terminado**: los services de los cinco CU CORE están hechos y probados.
 - **Paso 2: controllers, DTO, errores e integraciones**, una vez comprobada la lógica.
   - DTO-01 a DTO-09: hechos, con anotaciones de Bean Validation en DTO-01, DTO-03 y DTO-09.
-  - Pendientes: mappers, `GlobalExceptionHandler`, controllers, clients y springdoc.
+  - `GlobalExceptionHandler`: hecho, con `GlobalExceptionHandlerTest`.
+  - Controllers: hechos. `RepartidorController` (API-01 POST /api/v1/couriers → 201, API-02 PATCH /api/v1/couriers/{id}/availability → 200) y `EntregaController` (API-03 POST /api/v1/deliveries/assign → 201 o 202, API-04 POST /{id}/pickup → 200 con body opcional, API-05 POST /{id}/complete → 200). Probados de punta a punta con MockMvc en `RepartidorControllerTest` y `EntregaControllerTest`.
+  - Pendientes: springdoc y `DemoDataLoader`.
 - **Paso 3: pruebas integrales y revisión de trazabilidad** entre casos de uso, reglas de negocio y código.
 
 ### Decisiones pendientes
 
-- RN-10: mecanismo de autenticación (JWT o un mecanismo simplificado).
-- Qué valor lleva `correlationId` en `ErrorResponse`.
 - CU-01 A6: cuando exista el cliente HTTP real de Usuarios, traducir su falla a 503 `USERS_SERVICE_UNAVAILABLE` (el mock no falla nunca).
-- `GlobalExceptionHandler` (paso 2): traducir `MethodArgumentNotValidException` de Bean Validation a 400 `VALIDATION_ERROR`.
 
 ### Deuda técnica conocida
 
