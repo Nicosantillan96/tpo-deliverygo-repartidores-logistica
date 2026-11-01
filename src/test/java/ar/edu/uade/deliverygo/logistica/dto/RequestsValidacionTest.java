@@ -59,6 +59,35 @@ class RequestsValidacionTest {
         assertThat(camposConError(new CambiarDisponibilidadRequest(Disponibilidad.DISPONIBLE))).isEmpty();
     }
 
+    // ---------- DTO-04 AsignarEntregaRequest (CU-03) ----------
+
+    @Test
+    void unaAsignacionCompletaNoTieneErroresYElRepartidorEsOpcional() {
+        AsignarEntregaRequest request = new AsignarEntregaRequest(100L, 200L, 300L,
+                "Av. Corrientes 1234, CABA", "Lima 757, CABA", null);
+
+        assertThat(camposConError(request)).isEmpty();
+    }
+
+    @Test
+    void laAsignacionInformaLosCamposObligatoriosQueFaltan() {
+        assertThat(camposConError(new AsignarEntregaRequest())).containsExactlyInAnyOrder(
+                "pedidoId", "clienteId", "comercioId", "direccionRetiro", "direccionEntrega");
+    }
+
+    // ---------- DTO-06 RegistrarRetiroRequest (CU-04) ----------
+
+    @Test
+    void elRetiroSinObservacionNoTieneErrores() {
+        assertThat(camposConError(new RegistrarRetiroRequest())).isEmpty();
+    }
+
+    @Test
+    void laObservacionDelRetiroNoPuedePasarDe255Caracteres() {
+        assertThat(camposConError(new RegistrarRetiroRequest("x".repeat(256))))
+                .containsExactly("observacion");
+    }
+
     private Set<String> camposConError(Object request) {
         return validator.validate(request).stream()
                 .map(ConstraintViolation::getPropertyPath)
