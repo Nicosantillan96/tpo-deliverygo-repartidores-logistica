@@ -126,7 +126,7 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 ### Convenciones del proyecto
 
 - IDs `Long` con `GenerationType.IDENTITY`, como en el ejemplo de clase. No se usa UUID, aunque el diagrama de clases lo indique. Los IDs de otros módulos (`pedidoId`, `clienteId`, `comercioId`, `usuarioId`) también son `Long`.
-- Paquete base `ar.edu.uade.deliverygo.logistica`, con subpaquetes `model`, `dto`, `repository`, `service`, `excepcion`, `client` y `controller`. No hay paquete `mapper`: la conversión entidad → Response la hace cada service (`convertirResponse`), como `convertirDTO` en el ejemplo de clase (decisión del 01/11/2026; la especificación preveía `RepartidorMapper` y `EntregaMapper`).
+- Paquete base `ar.edu.uade.deliverygo.logistica`, con subpaquetes `model`, `dto`, `repository`, `service`, `excepcion`, `client`, `controller` y `config`. No hay paquete `mapper`: la conversión entidad → Response la hace cada service (`convertirResponse`), como `convertirDTO` en el ejemplo de clase (decisión del 01/11/2026; la especificación preveía `RepartidorMapper` y `EntregaMapper`).
 - DTO como clases con getters y setters, sin Lombok. Los requests tienen constructor vacío y setters; los responses tienen campos `final` y solo getters.
 - DTO: regla única en todo el módulo, como la filmina de la cátedra ("Validación en la Frontera") y la sección 15 de la especificación: lo que entra es un `...Request` validado con `@Valid`; lo que sale es un `...Response`. Se probó un único `RepartidorDTO` (DM-13, 01/11/2026) y se revirtió el mismo día para tener una sola regla y `@Valid` en todos los endpoints. `RepartidorResponse` incluye `dni` y `telefono` (DTO-02 de la especificación no los incluía).
 - Los requests no tienen campos que define el sistema (`id`, `estado`, `disponibilidad` en el alta, `fechaAlta`) ni datos de identidad (`repartidorId`/`usuarioId` en CU-02, CU-04 y CU-05, RN-10). `EntregaResponse` no tiene el código de confirmación (RN-13).
@@ -180,7 +180,8 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
   - DTO-01 a DTO-09: hechos, con anotaciones de Bean Validation en DTO-01, DTO-03 y DTO-09.
   - `GlobalExceptionHandler`: hecho, con `GlobalExceptionHandlerTest`.
   - Controllers: hechos. `RepartidorController` (API-01 POST /api/v1/couriers → 201, API-02 PATCH /api/v1/couriers/{id}/availability → 200) y `EntregaController` (API-03 POST /api/v1/deliveries/assign → 201 o 202, API-04 POST /{id}/pickup → 200 con body opcional, API-05 POST /{id}/complete → 200). Probados de punta a punta con MockMvc en `RepartidorControllerTest` y `EntregaControllerTest`.
-  - Pendientes: springdoc y `DemoDataLoader`.
+  - springdoc: hecho. `springdoc-openapi-starter-webmvc-ui` 2.8.14 (la línea 2.8 es la de Spring Boot 3.x), `config.OpenApiConfig` con el título y la descripción, Swagger UI en `/swagger-ui.html` y contrato en `/v3/api-docs`. Probado en `OpenApiConfigTest`.
+  - Pendiente: `DemoDataLoader`.
 - **Paso 3: pruebas integrales y revisión de trazabilidad** entre casos de uso, reglas de negocio y código.
 
 ### Decisiones pendientes
