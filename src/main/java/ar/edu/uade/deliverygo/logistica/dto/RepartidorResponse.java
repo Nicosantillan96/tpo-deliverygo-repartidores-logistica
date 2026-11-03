@@ -6,7 +6,7 @@ import ar.edu.uade.deliverygo.logistica.model.EstadoRepartidor;
 import java.time.LocalDateTime;
 
 // DTO-02: salida de CU-01 y CU-02. Solo lectura: no tiene setters
-// Incluye dni y telefono (decision del 01/11/2026; la especificacion no los incluia)
+// Incluye dni y telefono
 public class RepartidorResponse {
 
     private final Long id;

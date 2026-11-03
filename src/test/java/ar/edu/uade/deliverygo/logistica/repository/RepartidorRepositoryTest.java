@@ -21,9 +21,6 @@ class RepartidorRepositoryTest {
     private RepartidorRepository repartidorRepository;
 
     @Autowired
-    private VehiculoRepository vehiculoRepository;
-
-    @Autowired
     private TestEntityManager entityManager;
 
     @Test
@@ -41,7 +38,7 @@ class RepartidorRepositoryTest {
 
         assertThat(leido.getVehiculos()).hasSize(2);
         assertThat(leido.getVersion()).isNotNull();
-        assertThat(vehiculoRepository.count()).isEqualTo(2);
+        assertThat(cantidadDeVehiculos()).isEqualTo(2);
     }
 
     @Test
@@ -59,7 +56,7 @@ class RepartidorRepositoryTest {
         entityManager.flush();
         entityManager.clear();
 
-        assertThat(vehiculoRepository.count()).isEqualTo(1);
+        assertThat(cantidadDeVehiculos()).isEqualTo(1);
     }
 
     // REP-01 y REP-02 (RN-02)
@@ -151,5 +148,14 @@ class RepartidorRepositoryTest {
         vehiculo.setPatente(patente);
         vehiculo.setActivo(true);
         return vehiculo;
+    }
+
+    // Cuenta las filas de la tabla vehiculos directamente con JPQL.
+    // No hace falta un VehiculoRepository: los vehiculos se guardan y se borran
+    // siempre a traves del repartidor (cascade y orphanRemoval, REL-01)
+    private long cantidadDeVehiculos() {
+        return entityManager.getEntityManager()
+                .createQuery("select count(v) from Vehiculo v", Long.class)
+                .getSingleResult();
     }
 }
