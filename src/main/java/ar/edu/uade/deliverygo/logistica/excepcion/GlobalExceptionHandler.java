@@ -18,8 +18,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 // Traduce las excepciones al formato normalizado de error (DTO-08, seccion 17).
-// Como en el ejemplo de clase: un @RestControllerAdvice con un @ExceptionHandler
-// por tipo de excepcion. El codigo HTTP de cada error de negocio sale de CodigoError.
+//un @RestControllerAdvice con un @ExceptionHandler por tipo de excepcion. El codigo HTTP de cada error de negocio sale de CodigoError.
 // Cada respuesta lleva un correlationId nuevo que tambien se escribe en el log,
 // para poder encontrar el error a partir de lo que vio el cliente.
 // Los errores no previstos (500) y los propios de Spring (URL inexistente 404,

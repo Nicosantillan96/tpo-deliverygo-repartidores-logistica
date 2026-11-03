@@ -10,6 +10,7 @@ import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
 import ar.edu.uade.deliverygo.logistica.excepcion.ReglaNegocioException;
+import ar.edu.uade.deliverygo.logistica.mapper.EntregaMapper;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.Entrega;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
@@ -52,17 +53,20 @@ public class EntregaService {
     private final PedidosClient pedidosClient;
     private final NotificacionesClient notificacionesClient;
     private final AnaliticaClient analiticaClient;
+    private final EntregaMapper entregaMapper;
 
     public EntregaService(EntregaRepository entregaRepository,
                           RepartidorRepository repartidorRepository,
                           PedidosClient pedidosClient,
                           NotificacionesClient notificacionesClient,
-                          AnaliticaClient analiticaClient) {
+                          AnaliticaClient analiticaClient,
+                          EntregaMapper entregaMapper) {
         this.entregaRepository = entregaRepository;
         this.repartidorRepository = repartidorRepository;
         this.pedidosClient = pedidosClient;
         this.notificacionesClient = notificacionesClient;
         this.analiticaClient = analiticaClient;
+        this.entregaMapper = entregaMapper;
     }
 
     // SRV-03 / CU-03: asignar repartidor a una entrega
@@ -86,7 +90,7 @@ public class EntregaService {
         Optional<Repartidor> elegido = elegirRepartidor(request.getRepartidorId());
         if (elegido.isEmpty()) {
             // A4: no hay repartidores disponibles; la entrega queda pendiente
-            return convertirResponse(entregaRepository.save(entrega));
+            return entregaMapper.toResponse(entregaRepository.save(entrega));
         }
         Repartidor repartidor = elegido.get();
 
@@ -106,7 +110,7 @@ public class EntregaService {
                         repartidor.getId(), guardada.getClienteId(),
                         guardada.getCodigoConfirmacion()));
 
-        return convertirResponse(guardada);
+        return entregaMapper.toResponse(guardada);
     }
 
     // SRV-04 / CU-04: registrar retiro del pedido
@@ -141,7 +145,7 @@ public class EntregaService {
                 () -> notificacionesClient.avisarRetiro(guardada.getId(),
                         guardada.getClienteId()));
 
-        return convertirResponse(guardada);
+        return entregaMapper.toResponse(guardada);
     }
 
     // SRV-05 / CU-05: confirmar entrega del pedido
@@ -186,7 +190,7 @@ public class EntregaService {
                         guardada.getFechaAsignacion(), guardada.getFechaRetiro(),
                         guardada.getFechaEntrega()));
 
-        return convertirResponse(guardada);
+        return entregaMapper.toResponse(guardada);
     }
 
     private Entrega buscarEntidadPorId(Long entregaId) {
@@ -295,20 +299,5 @@ public class EntregaService {
         } catch (RuntimeException e) {
             log.warn("No se pudo avisar {}: {}", descripcion, e.getMessage());
         }
-    }
-
-    // Entidad -> DTO-05. Nunca incluye el codigo de confirmacion (RN-13)
-    private EntregaResponse convertirResponse(Entrega entrega) {
-        Long repartidorId = Objects.isNull(entrega.getRepartidor()) ? null
-                : entrega.getRepartidor().getId();
-        return new EntregaResponse(
-                entrega.getId(),
-                entrega.getPedidoId(),
-                repartidorId,
-                entrega.getEstado(),
-                entrega.getFechaCreacion(),
-                entrega.getFechaAsignacion(),
-                entrega.getFechaRetiro(),
-                entrega.getFechaEntrega());
     }
 }

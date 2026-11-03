@@ -7,6 +7,7 @@ import ar.edu.uade.deliverygo.logistica.dto.RepartidorResponse;
 import ar.edu.uade.deliverygo.logistica.dto.VehiculoDTO;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
 import ar.edu.uade.deliverygo.logistica.excepcion.ReglaNegocioException;
+import ar.edu.uade.deliverygo.logistica.mapper.RepartidorMapper;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.Entrega;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
@@ -29,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 // (usuarios 1 a 5 elegibles, 6 inactivo, 7 con rol CLIENTE). Cada test se revierte al terminar.
 // Los datos obligatorios (RN-01) se prueban aparte, en RequestsValidacionTest
 @DataJpaTest
-@Import({RepartidorService.class, UsuariosClientMock.class})
+@Import({RepartidorService.class, UsuariosClientMock.class, RepartidorMapper.class})
 class RepartidorServiceTest {
 
     @Autowired

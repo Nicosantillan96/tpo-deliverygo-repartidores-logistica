@@ -194,7 +194,7 @@ public class Entrega {
                     "La entrega todavía no fue retirada");
         }
         validarTransicion(EstadoEntrega.COMPLETADA);
-        // RN-13: si el codigo es incorrecto la entrega no cambia de estado
+        // si el codigo es incorrecto la entrega no cambia de estado
         if (!Objects.equals(codigoConfirmacion, codigo)) {
             throw new ReglaNegocioException(CodigoError.INVALID_CONFIRMATION_CODE,
                     "El código de confirmación es incorrecto");
@@ -204,9 +204,8 @@ public class Entrega {
         repartidor.liberar();
     }
 
-    // RN-08: maquina de estados de la entrega (seccion 7 de la especificacion)
-    // Solo incluye las transiciones de los CU CORE; las de CU-06/CU-07 y la
-    // cancelacion se agregan cuando se implementen esos casos de uso
+    // RN-08: maquina de estados de la entrega
+    // Solo incluye las transiciones de los CU CORE;
     private void validarTransicion(EstadoEntrega destino) {
         boolean valida = switch (estado) {
             case PENDIENTE_ASIGNACION -> destino == EstadoEntrega.ASIGNADA;

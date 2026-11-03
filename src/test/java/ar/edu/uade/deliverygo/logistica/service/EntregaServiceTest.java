@@ -11,6 +11,7 @@ import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
 import ar.edu.uade.deliverygo.logistica.excepcion.ReglaNegocioException;
+import ar.edu.uade.deliverygo.logistica.mapper.EntregaMapper;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.Entrega;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
@@ -34,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 // 106 PENDIENTE, el resto no existe) y Notificaciones. Cada test se revierte al terminar
 @DataJpaTest
 @Import({EntregaService.class, PedidosClientMock.class, NotificacionesClientMock.class,
-        AnaliticaClientMock.class})
+        AnaliticaClientMock.class, EntregaMapper.class})
 class EntregaServiceTest {
 
     @Autowired
@@ -417,7 +418,7 @@ class EntregaServiceTest {
     private EntregaService serviceConAvisosQueFallan() {
         return new EntregaService(entregaRepository, repartidorRepository,
                 new PedidosQueFallanAlInformar(), new NotificacionesQueFallan(),
-                new AnaliticaQueFalla());
+                new AnaliticaQueFalla(), new EntregaMapper());
     }
 
     private static class PedidosQueFallanAlInformar extends PedidosClientMock {
