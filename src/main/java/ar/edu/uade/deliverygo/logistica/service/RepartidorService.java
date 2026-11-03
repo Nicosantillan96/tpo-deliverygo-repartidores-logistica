@@ -8,6 +8,7 @@ import ar.edu.uade.deliverygo.logistica.dto.RepartidorResponse;
 import ar.edu.uade.deliverygo.logistica.dto.VehiculoDTO;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
 import ar.edu.uade.deliverygo.logistica.excepcion.ReglaNegocioException;
+import ar.edu.uade.deliverygo.logistica.mapper.RepartidorMapper;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
 import ar.edu.uade.deliverygo.logistica.model.EstadoRepartidor;
@@ -35,13 +36,16 @@ public class RepartidorService {
     private final RepartidorRepository repartidorRepository;
     private final EntregaRepository entregaRepository;
     private final UsuariosClient usuariosClient;
+    private final RepartidorMapper repartidorMapper;
 
     public RepartidorService(RepartidorRepository repartidorRepository,
                              EntregaRepository entregaRepository,
-                             UsuariosClient usuariosClient) {
+                             UsuariosClient usuariosClient,
+                             RepartidorMapper repartidorMapper) {
         this.repartidorRepository = repartidorRepository;
         this.entregaRepository = entregaRepository;
         this.usuariosClient = usuariosClient;
+        this.repartidorMapper = repartidorMapper;
     }
 
     // SRV-01 / CU-01: registrar repartidor
@@ -91,7 +95,7 @@ public class RepartidorService {
 
         // REP-08: el vehiculo se guarda en cascada con el repartidor
         Repartidor guardado = repartidorRepository.save(repartidor);
-        return convertirResponse(guardado);
+        return repartidorMapper.toResponse(guardado);
     }
 
     // SRV-02 / CU-02: el repartidor cambia su disponibilidad
@@ -122,7 +126,7 @@ public class RepartidorService {
         repartidor.cambiarDisponibilidad(dto.getDisponibilidad());
 
         // REP-08
-        return convertirResponse(repartidorRepository.save(repartidor));
+        return repartidorMapper.toResponse(repartidorRepository.save(repartidor));
     }
 
     private Repartidor buscarEntidadPorId(Long id) {
@@ -151,24 +155,5 @@ public class RepartidorService {
             throw new ReglaNegocioException(CodigoError.USER_NOT_ELIGIBLE,
                     "El usuario " + usuarioId + " no existe, está inactivo o no tiene rol REPARTIDOR");
         }
-    }
-
-    // Entidad -> DTO-02. La entidad nunca se expone directamente en la API
-    private RepartidorResponse convertirResponse(Repartidor repartidor) {
-        Vehiculo activo = repartidor.vehiculoActivo();
-        VehiculoDTO vehiculo = Objects.isNull(activo) ? null
-                : new VehiculoDTO(activo.getTipo(), activo.getPatente(), activo.getDescripcion());
-
-        return new RepartidorResponse(
-                repartidor.getId(),
-                repartidor.getUsuarioId(),
-                repartidor.getNombre(),
-                repartidor.getApellido(),
-                repartidor.getDni(),
-                repartidor.getTelefono(),
-                repartidor.getEstado(),
-                repartidor.getDisponibilidad(),
-                vehiculo,
-                repartidor.getFechaAlta());
     }
 }
