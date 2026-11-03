@@ -181,7 +181,7 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
   - DTO-01 a DTO-09: hechos, con anotaciones de Bean Validation en DTO-01, DTO-03 y DTO-09.
   - `GlobalExceptionHandler`: hecho, con `GlobalExceptionHandlerTest`.
   - Controllers: hechos. `RepartidorController` (API-01 POST /api/v1/couriers → 201, API-02 PATCH /api/v1/couriers/{id}/availability → 200) y `EntregaController` (API-03 POST /api/v1/deliveries/assign → 201 o 202, API-04 POST /{id}/pickup → 200 con body opcional, API-05 POST /{id}/complete → 200). Probados de punta a punta con MockMvc en `RepartidorControllerTest` y `EntregaControllerTest`.
-  - springdoc: hecho. `springdoc-openapi-starter-webmvc-ui` 2.8.14 (la línea 2.8 es la de Spring Boot 3.x), `config.OpenApiConfig` con el título y la descripción, Swagger UI en `/swagger-ui.html` y contrato en `/v3/api-docs`. Probado en `OpenApiConfigTest`.
+  - springdoc: hecho. `springdoc-openapi-starter-webmvc-ui` 2.8.14 (la línea 2.8 es la de Spring Boot 3.x), `config.OpenApiConfig` con el título y la descripción, Swagger UI en `/swagger-ui.html` y contrato en `/v3/api-docs`. Los controllers llevan `@Tag`, `@Operation`, `@ApiResponse` (cada código HTTP con sus códigos de error y el esquema `ErrorResponse`) y `@Parameter`, sin mencionar las RN en las descripciones (03/11/2026). Probado en `OpenApiConfigTest`. El contrato exportado va en `doc/openapi.yaml` (pedido del profesor), junto con la primera entrega.
   - Pendiente: `DemoDataLoader`.
 - **Paso 3: pruebas integrales y revisión de trazabilidad** entre casos de uso, reglas de negocio y código.
 
