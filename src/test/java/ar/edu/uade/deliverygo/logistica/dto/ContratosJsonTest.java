@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.dto;
 
+import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
 import ar.edu.uade.deliverygo.logistica.model.EstadoRepartidor;
@@ -27,7 +28,7 @@ class ContratosJsonTest {
     @Test
     void entregaResponseNoIncluyeElCodigoDeConfirmacion() throws Exception {
         EntregaResponse response = new EntregaResponse(
-                1L, 100L, 7L, EstadoEntrega.ASIGNADA,
+                1L, PedidosClientMock.pedido(100), 7L, EstadoEntrega.ASIGNADA,
                 LocalDateTime.of(2026, 10, 5, 19, 2, 11),
                 LocalDateTime.of(2026, 10, 5, 19, 2, 11),
                 null, null);

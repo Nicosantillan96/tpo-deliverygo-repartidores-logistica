@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.config;
 
+import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
 import ar.edu.uade.deliverygo.logistica.repository.EntregaRepository;
@@ -32,9 +33,9 @@ class DemoDataLoaderTest {
 
     @Test
     void dejaUnaEntregaAsignadaYOtraRetirada() {
-        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(100L, EstadoEntrega.CANCELADA))
+        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(PedidosClientMock.pedido(100), EstadoEntrega.CANCELADA))
                 .get().extracting("estado").isEqualTo(EstadoEntrega.ASIGNADA);
-        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(101L, EstadoEntrega.CANCELADA))
+        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(PedidosClientMock.pedido(101), EstadoEntrega.CANCELADA))
                 .get().extracting("estado").isEqualTo(EstadoEntrega.RETIRADA);
     }
 

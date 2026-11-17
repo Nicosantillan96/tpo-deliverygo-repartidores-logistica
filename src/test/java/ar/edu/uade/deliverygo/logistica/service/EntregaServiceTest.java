@@ -27,6 +27,7 @@ import org.springframework.context.annotation.Import;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -53,7 +54,7 @@ class EntregaServiceTest {
     void asignaUnRepartidorDisponible() {
         Repartidor repartidor = repartidorDisponible(1L, "1", null);
 
-        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100L));
+        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100));
 
         assertThat(resultado.getId()).isNotNull();
         assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
@@ -71,7 +72,7 @@ class EntregaServiceTest {
     void registraLosDosCambiosEnElHistorial() {
         repartidorDisponible(1L, "1", null);
 
-        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100L));
+        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100));
 
         List<HistorialEstadoEntrega> historial =
                 entregaRepository.findById(resultado.getId()).orElseThrow().getHistorial();
@@ -90,7 +91,7 @@ class EntregaServiceTest {
         repartidorDisponible(1L, "1", hoy.minusHours(1));
         Repartidor masAntiguo = repartidorDisponible(2L, "2", hoy.minusDays(1));
 
-        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100L));
+        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100));
 
         assertThat(resultado.getRepartidorId()).isEqualTo(masAntiguo.getId());
     }
@@ -101,7 +102,7 @@ class EntregaServiceTest {
         Repartidor inactivo = repartidorDisponible(1L, "1", null);
         inactivo.setEstado(EstadoRepartidor.INACTIVO);
 
-        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100L));
+        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100));
 
         assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.PENDIENTE_ASIGNACION);
     }
@@ -110,7 +111,7 @@ class EntregaServiceTest {
 
     @Test
     void sinRepartidoresLaEntregaQuedaPendiente() {
-        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100L));
+        EntregaResponse resultado = entregaService.asignarRepartidor(pedido(100));
 
         assertThat(resultado.getId()).isNotNull();
         assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.PENDIENTE_ASIGNACION);
@@ -121,10 +122,10 @@ class EntregaServiceTest {
 
     @Test
     void alReintentarSeReutilizaLaEntregaPendiente() {
-        EntregaResponse primero = entregaService.asignarRepartidor(pedido(100L));
+        EntregaResponse primero = entregaService.asignarRepartidor(pedido(100));
         repartidorDisponible(1L, "1", null);
 
-        EntregaResponse segundo = entregaService.asignarRepartidor(pedido(100L));
+        EntregaResponse segundo = entregaService.asignarRepartidor(pedido(100));
 
         assertThat(segundo.getId()).isEqualTo(primero.getId());
         assertThat(segundo.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
@@ -135,20 +136,20 @@ class EntregaServiceTest {
 
     @Test
     void unPedidoInexistenteDa404() {
-        assertError(pedido(999L), CodigoError.ORDER_NOT_FOUND);
+        assertError(pedido(999), CodigoError.ORDER_NOT_FOUND);
     }
 
     @Test
     void unPedidoNoConfirmadoSeRechaza() {
-        assertError(pedido(106L), CodigoError.ORDER_NOT_CONFIRMED);
+        assertError(pedido(106), CodigoError.ORDER_NOT_CONFIRMED);
     }
 
     @Test
     void unPedidoConEntregaAsignadaNoSeDuplica() {
         repartidorDisponible(1L, "1", null);
-        entregaService.asignarRepartidor(pedido(100L));
+        entregaService.asignarRepartidor(pedido(100));
 
-        assertError(pedido(100L), CodigoError.DELIVERY_ALREADY_EXISTS);
+        assertError(pedido(100), CodigoError.DELIVERY_ALREADY_EXISTS);
     }
 
     // ---------- repartidor indicado por un administrador ----------
@@ -157,7 +158,7 @@ class EntregaServiceTest {
     void asignaAlRepartidorIndicado() {
         repartidorDisponible(1L, "1", LocalDateTime.of(2026, 1, 1, 0, 0));
         Repartidor indicado = repartidorDisponible(2L, "2", LocalDateTime.now());
-        AsignarEntregaRequest request = pedido(100L);
+        AsignarEntregaRequest request = pedido(100);
         request.setRepartidorId(indicado.getId());
 
         EntregaResponse resultado = entregaService.asignarRepartidor(request);
@@ -169,7 +170,7 @@ class EntregaServiceTest {
     void elRepartidorIndicadoNoDisponibleSeRechaza() {
         Repartidor indicado = repartidorDisponible(1L, "1", null);
         indicado.setDisponibilidad(Disponibilidad.NO_DISPONIBLE);
-        AsignarEntregaRequest request = pedido(100L);
+        AsignarEntregaRequest request = pedido(100);
         request.setRepartidorId(indicado.getId());
 
         assertError(request, CodigoError.COURIER_NOT_AVAILABLE);
@@ -177,7 +178,7 @@ class EntregaServiceTest {
 
     @Test
     void elRepartidorIndicadoInexistenteDa404() {
-        AsignarEntregaRequest request = pedido(100L);
+        AsignarEntregaRequest request = pedido(100);
         request.setRepartidorId(999L);
 
         assertError(request, CodigoError.COURIER_NOT_FOUND);
@@ -189,7 +190,7 @@ class EntregaServiceTest {
     void siFallaElAvisoLaAsignacionNoSeRevierte() {
         repartidorDisponible(1L, "1", null);
 
-        EntregaResponse resultado = serviceConAvisosQueFallan().asignarRepartidor(pedido(100L));
+        EntregaResponse resultado = serviceConAvisosQueFallan().asignarRepartidor(pedido(100));
 
         assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
     }
@@ -251,7 +252,7 @@ class EntregaServiceTest {
     // RN-10: una entrega PENDIENTE no tiene repartidor asignado
     @Test
     void noSePuedeRetirarUnaEntregaSinRepartidor() {
-        Long entregaId = entregaService.asignarRepartidor(pedido(100L)).getId();
+        Long entregaId = entregaService.asignarRepartidor(pedido(100)).getId();
 
         assertErrorRetiro(entregaId, 1L, CodigoError.COURIER_NOT_ASSIGNED);
     }
@@ -315,7 +316,7 @@ class EntregaServiceTest {
         Long entregaId = entregaRetiradaPorElUsuario1();
         entregaService.confirmarEntrega(entregaId, confirmacion(codigoDe(entregaId)), 1L);
 
-        EntregaResponse otra = entregaService.asignarRepartidor(pedido(101L));
+        EntregaResponse otra = entregaService.asignarRepartidor(pedido(101));
 
         assertThat(otra.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
     }
@@ -403,7 +404,7 @@ class EntregaServiceTest {
 
     private Long entregaAsignadaAlUsuario1() {
         repartidorDisponible(1L, "1", null);
-        return entregaService.asignarRepartidor(pedido(100L)).getId();
+        return entregaService.asignarRepartidor(pedido(100)).getId();
     }
 
     private void assertErrorRetiro(Long entregaId, Long usuarioId, CodigoError esperado) {
@@ -423,7 +424,7 @@ class EntregaServiceTest {
 
     private static class PedidosQueFallanAlInformar extends PedidosClientMock {
         @Override
-        public void informarEstadoEntrega(Long pedidoId, EstadoEntrega estado) {
+        public void informarEstadoEntrega(UUID pedidoId, EstadoEntrega estado) {
             throw new IllegalStateException("Pedidos no responde");
         }
     }
@@ -467,8 +468,8 @@ class EntregaServiceTest {
         assertThat(entregaRepository.count()).isEqualTo(antes);
     }
 
-    private AsignarEntregaRequest pedido(Long pedidoId) {
-        return new AsignarEntregaRequest(pedidoId, 200L, 300L,
+    private AsignarEntregaRequest pedido(int numero) {
+        return new AsignarEntregaRequest(PedidosClientMock.pedido(numero), 200L, 300L,
                 "Av. Corrientes 1234, CABA", "Lima 757, CABA", null);
     }
 

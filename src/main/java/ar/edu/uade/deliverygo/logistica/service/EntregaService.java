@@ -29,6 +29,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class EntregaService {
@@ -210,7 +211,7 @@ public class EntregaService {
     }
 
     // RN-11 / INT-03
-    private void validarPedidoConfirmado(Long pedidoId) {
+    private void validarPedidoConfirmado(UUID pedidoId) {
         PedidoExterno pedido = pedidosClient.buscarPedido(pedidoId);
         if (Objects.isNull(pedido)) {
             throw new ReglaNegocioException(CodigoError.ORDER_NOT_FOUND,

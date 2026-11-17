@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.config;
 
+import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.dto.AsignarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.CambiarDisponibilidadRequest;
 import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
@@ -18,6 +19,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
+import java.util.UUID;
+
 // Datos de prueba para mostrar la API funcionando, como el DemoDataLoader del ejemplo de clase.
 // Solo se carga con el perfil "demo" (en los tests y en el arranque normal no corre):
 //   .\mvnw spring-boot:run "-Dspring-boot.run.profiles=demo"
@@ -33,6 +36,10 @@ import org.springframework.context.annotation.Profile;
 public class DemoDataLoader {
 
     private static final Logger log = LoggerFactory.getLogger(DemoDataLoader.class);
+
+    // Pedidos del mock de Pedidos (los ids de Pedidos son UUID)
+    private static final UUID PEDIDO_ASIGNADO = PedidosClientMock.pedido(100);
+    private static final UUID PEDIDO_RETIRADO = PedidosClientMock.pedido(101);
 
     @Bean
     public CommandLineRunner cargarDatosDemo(RepartidorService repartidorService,
@@ -54,23 +61,24 @@ public class DemoDataLoader {
 
             // CU-03: el pedido 100 se asigna al repartidor de la moto
             EntregaResponse asignada = entregaService.asignarRepartidor(new AsignarEntregaRequest(
-                    100L, 200L, 300L, "Av. Corrientes 1234, CABA", "Lima 757, CABA", moto));
+                    PEDIDO_ASIGNADO, 200L, 300L, "Av. Corrientes 1234, CABA", "Lima 757, CABA", moto));
 
             // CU-03 y CU-04: el pedido 101 se asigna al de la bicicleta, que ya lo retiro
             EntregaResponse retirada = entregaService.asignarRepartidor(new AsignarEntregaRequest(
-                    101L, 201L, 300L, "Av. Corrientes 1234, CABA", "Av. Santa Fe 3000, CABA", bici));
+                    PEDIDO_RETIRADO, 201L, 300L, "Av. Corrientes 1234, CABA", "Av. Santa Fe 3000, CABA", bici));
             retirada = entregaService.registrarRetiro(retirada.getId(),
                     new RegistrarRetiroRequest("Retirado en el mostrador"), 2L);
 
             log.info("========== Datos de demo cargados ==========");
             log.info("Repartidores: {} (usuario 1, MOTO), {} (usuario 2, BICICLETA), {} (usuario 3, AUTO)",
                     moto, bici, auto);
-            log.info("Entrega {}: pedido 100, {}. Retiro con header X-Usuario-Id: 1. Codigo: {}",
-                    asignada.getId(), asignada.getEstado(), codigo(entregaRepository, asignada.getId()));
-            log.info("Entrega {}: pedido 101, {}. Confirmacion con header X-Usuario-Id: 2. Codigo: {}",
-                    retirada.getId(), retirada.getEstado(), codigo(entregaRepository, retirada.getId()));
-            log.info("Pedidos 102 a 105 libres para asignar; los toma el repartidor {}.", auto);
-            log.info("Swagger UI: http://localhost:8080/swagger-ui.html");
+            log.info("Entrega {}: pedido {}, {}. Retiro con header X-Usuario-Id: 1. Codigo: {}",
+                    asignada.getId(), asignada.getPedidoId(), asignada.getEstado(), codigo(entregaRepository, asignada.getId()));
+            log.info("Entrega {}: pedido {}, {}. Confirmacion con header X-Usuario-Id: 2. Codigo: {}",
+                    retirada.getId(), retirada.getPedidoId(), retirada.getEstado(), codigo(entregaRepository, retirada.getId()));
+            log.info("Pedidos {} a {} libres para asignar; los toma el repartidor {}.",
+                    PedidosClientMock.pedido(102), PedidosClientMock.pedido(105), auto);
+            log.info("Swagger UI: http://localhost:8088/swagger-ui.html");
             log.info("============================================");
         };
     }

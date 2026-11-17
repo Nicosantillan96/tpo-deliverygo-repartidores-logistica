@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.controller;
 
+import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.repository.EntregaRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -40,7 +41,7 @@ class EntregaControllerTest {
 
         mockMvc.perform(post("/api/v1/deliveries/assign")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(pedido(100L)))
+                        .content(pedido(100)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.estado").value("ASIGNADA"))
                 .andExpect(jsonPath("$.repartidorId").isNumber())
@@ -53,7 +54,7 @@ class EntregaControllerTest {
     void asignarSinRepartidoresDevuelve202() throws Exception {
         mockMvc.perform(post("/api/v1/deliveries/assign")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(pedido(100L)))
+                        .content(pedido(100)))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.estado").value("PENDIENTE_ASIGNACION"))
                 .andExpect(jsonPath("$.repartidorId").isEmpty());
@@ -74,7 +75,7 @@ class EntregaControllerTest {
     void asignarUnPedidoNoConfirmadoDevuelve422() throws Exception {
         mockMvc.perform(post("/api/v1/deliveries/assign")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(pedido(106L)))
+                        .content(pedido(106)))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("ORDER_NOT_CONFIRMED"));
     }
@@ -196,7 +197,7 @@ class EntregaControllerTest {
         repartidorDisponibleDelUsuario1();
         String json = mockMvc.perform(post("/api/v1/deliveries/assign")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(pedido(100L)))
+                        .content(pedido(100)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return objectMapper.readTree(json).get("id").asLong();
@@ -214,14 +215,14 @@ class EntregaControllerTest {
         return entregaRepository.findById(entregaId).orElseThrow().getCodigoConfirmacion();
     }
 
-    private String pedido(Long pedidoId) {
+    private String pedido(int numero) {
         return """
                 {
-                  "pedidoId": %d, "clienteId": 200, "comercioId": 300,
+                  "pedidoId": "%s", "clienteId": 200, "comercioId": 300,
                   "direccionRetiro": "Av. Corrientes 1234, CABA",
                   "direccionEntrega": "Lima 757, CABA"
                 }
-                """.formatted(pedidoId);
+                """.formatted(PedidosClientMock.pedido(numero));
     }
 
     private String confirmacion(String codigo) {

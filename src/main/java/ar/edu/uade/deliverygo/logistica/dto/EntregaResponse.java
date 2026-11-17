@@ -3,13 +3,14 @@ package ar.edu.uade.deliverygo.logistica.dto;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 // DTO-05: salida de CU-03, CU-04 y CU-05. Solo lectura: no tiene setters
 // No incluye el codigo de confirmacion: solo lo recibe el cliente (RN-13)
 public class EntregaResponse {
 
     private final Long id;
-    private final Long pedidoId;
+    private final UUID pedidoId;
     private final Long repartidorId;
     private final EstadoEntrega estado;
     private final LocalDateTime fechaCreacion;
@@ -17,7 +18,7 @@ public class EntregaResponse {
     private final LocalDateTime fechaRetiro;
     private final LocalDateTime fechaEntrega;
 
-    public EntregaResponse(Long id, Long pedidoId, Long repartidorId, EstadoEntrega estado,
+    public EntregaResponse(Long id, UUID pedidoId, Long repartidorId, EstadoEntrega estado,
                            LocalDateTime fechaCreacion, LocalDateTime fechaAsignacion,
                            LocalDateTime fechaRetiro, LocalDateTime fechaEntrega) {
         this.id = id;
@@ -35,7 +36,7 @@ public class EntregaResponse {
         return id;
     }
 
-    public Long getPedidoId() {
+    public UUID getPedidoId() {
         return pedidoId;
     }
 

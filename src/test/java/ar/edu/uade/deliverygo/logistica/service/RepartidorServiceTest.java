@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.service;
 
+import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.client.UsuariosClientMock;
 import ar.edu.uade.deliverygo.logistica.dto.CambiarDisponibilidadRequest;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRepartidorRequest;
@@ -226,7 +227,7 @@ class RepartidorServiceTest {
 
     private Entrega entregaPendiente() {
         Entrega entrega = new Entrega();
-        entrega.setPedidoId(100L);
+        entrega.setPedidoId(PedidosClientMock.pedido(100));
         entrega.setClienteId(200L);
         entrega.setComercioId(300L);
         entrega.setDireccionRetiro("Av. Corrientes 1234, CABA");

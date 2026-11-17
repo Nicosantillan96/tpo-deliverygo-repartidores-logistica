@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.dto;
 
+import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.TipoVehiculo;
 import jakarta.validation.ConstraintViolation;
@@ -63,7 +64,7 @@ class RequestsValidacionTest {
 
     @Test
     void unaAsignacionCompletaNoTieneErroresYElRepartidorEsOpcional() {
-        AsignarEntregaRequest request = new AsignarEntregaRequest(100L, 200L, 300L,
+        AsignarEntregaRequest request = new AsignarEntregaRequest(PedidosClientMock.pedido(100), 200L, 300L,
                 "Av. Corrientes 1234, CABA", "Lima 757, CABA", null);
 
         assertThat(camposConError(request)).isEmpty();

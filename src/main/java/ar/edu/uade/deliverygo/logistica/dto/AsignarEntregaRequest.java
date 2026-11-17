@@ -2,6 +2,7 @@ package ar.edu.uade.deliverygo.logistica.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.util.UUID;
 
 // DTO-04: entrada de POST /api/v1/deliveries/assign (CU-03)
 // repartidorId es opcional: lo usa un administrador para elegir un
@@ -10,7 +11,7 @@ import jakarta.validation.constraints.NotNull;
 public class AsignarEntregaRequest {
 
     @NotNull(message = "El pedidoId es obligatorio")
-    private Long pedidoId;
+    private UUID pedidoId;
 
     @NotNull(message = "El clienteId es obligatorio")
     private Long clienteId;
@@ -30,7 +31,7 @@ public class AsignarEntregaRequest {
     public AsignarEntregaRequest() {
     }
 
-    public AsignarEntregaRequest(Long pedidoId, Long clienteId, Long comercioId,
+    public AsignarEntregaRequest(UUID pedidoId, Long clienteId, Long comercioId,
                                  String direccionRetiro, String direccionEntrega,
                                  Long repartidorId) {
         this.pedidoId = pedidoId;
@@ -42,11 +43,11 @@ public class AsignarEntregaRequest {
     }
 
     //GETTERS & SETTERS
-    public Long getPedidoId() {
+    public UUID getPedidoId() {
         return pedidoId;
     }
 
-    public void setPedidoId(Long pedidoId) {
+    public void setPedidoId(UUID pedidoId) {
         this.pedidoId = pedidoId;
     }
 

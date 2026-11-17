@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.mapper;
 
+import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
 import ar.edu.uade.deliverygo.logistica.dto.RepartidorResponse;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
@@ -54,13 +55,13 @@ class MappersTest {
     @Test
     void unaEntregaSinRepartidorDevuelveRepartidorIdNull() {
         Entrega entrega = new Entrega();
-        entrega.setPedidoId(100L);
+        entrega.setPedidoId(PedidosClientMock.pedido(100));
         entrega.setEstado(EstadoEntrega.PENDIENTE_ASIGNACION);
         entrega.setFechaCreacion(LocalDateTime.of(2026, 11, 3, 10, 0));
 
         EntregaResponse response = entregaMapper.toResponse(entrega);
 
-        assertThat(response.getPedidoId()).isEqualTo(100L);
+        assertThat(response.getPedidoId()).isEqualTo(PedidosClientMock.pedido(100));
         assertThat(response.getEstado()).isEqualTo(EstadoEntrega.PENDIENTE_ASIGNACION);
         assertThat(response.getRepartidorId()).isNull();
     }

@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 @Entity
 @Table(name = "entregas")
 
@@ -14,9 +15,10 @@ public class Entrega {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    //identificador del pedido del modulo Pedidos (sin relacion JPA)
+    // identificador del pedido del modulo Pedidos (sin relacion JPA). Es UUID porque
+    // asi lo define Pedidos (Grupo 5); el resto de los ids de este modulo son Long
     @Column(name = "pedido_id",nullable = false)
-    private Long pedidoId;
+    private UUID pedidoId;
     @Column(name = "cliente_id",nullable = false)
     private Long clienteId;
     @Column(name = "comercio_id",nullable = false)
@@ -58,11 +60,11 @@ public class Entrega {
         return id;
     }
 
-    public Long getPedidoId() {
+    public UUID getPedidoId() {
         return pedidoId;
     }
 
-    public void setPedidoId(Long pedidoId) {
+    public void setPedidoId(UUID pedidoId) {
         this.pedidoId = pedidoId;
     }
 

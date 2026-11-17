@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.repository;
 
+import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.Entrega;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
@@ -13,6 +14,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,9 +39,9 @@ class EntregaRepositoryTest {
     void existsEntregaActivaDelRepartidor() {
         Repartidor conEntrega = repartidorRepository.save(repartidor(1L, "1"));
         Repartidor libre = repartidorRepository.save(repartidor(2L, "2"));
-        entregaRepository.save(entrega(100L, EstadoEntrega.RETIRADA, conEntrega));
+        entregaRepository.save(entrega(PedidosClientMock.pedido(100), EstadoEntrega.RETIRADA, conEntrega));
         // Una entrega COMPLETADA no cuenta como activa
-        entregaRepository.save(entrega(200L, EstadoEntrega.COMPLETADA, libre));
+        entregaRepository.save(entrega(PedidosClientMock.pedido(200), EstadoEntrega.COMPLETADA, libre));
 
         assertThat(entregaRepository.existsByRepartidorIdAndEstadoIn(conEntrega.getId(), ACTIVAS)).isTrue();
         assertThat(entregaRepository.existsByRepartidorIdAndEstadoIn(libre.getId(), ACTIVAS)).isFalse();
@@ -48,19 +50,19 @@ class EntregaRepositoryTest {
     // REP-06 (RN-11, DM-11): ignora las canceladas y devuelve la vigente
     @Test
     void findByPedidoIdIgnoraLasCanceladas() {
-        entregaRepository.save(entrega(100L, EstadoEntrega.CANCELADA, null));
-        Entrega vigente = entregaRepository.save(entrega(100L, EstadoEntrega.PENDIENTE_ASIGNACION, null));
-        entregaRepository.save(entrega(200L, EstadoEntrega.CANCELADA, null));
+        entregaRepository.save(entrega(PedidosClientMock.pedido(100), EstadoEntrega.CANCELADA, null));
+        Entrega vigente = entregaRepository.save(entrega(PedidosClientMock.pedido(100), EstadoEntrega.PENDIENTE_ASIGNACION, null));
+        entregaRepository.save(entrega(PedidosClientMock.pedido(200), EstadoEntrega.CANCELADA, null));
 
-        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(100L, EstadoEntrega.CANCELADA))
+        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(PedidosClientMock.pedido(100), EstadoEntrega.CANCELADA))
                 .get().extracting(Entrega::getId).isEqualTo(vigente.getId());
-        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(200L, EstadoEntrega.CANCELADA))
+        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(PedidosClientMock.pedido(200), EstadoEntrega.CANCELADA))
                 .isEmpty();
-        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(300L, EstadoEntrega.CANCELADA))
+        assertThat(entregaRepository.findByPedidoIdAndEstadoNot(PedidosClientMock.pedido(300), EstadoEntrega.CANCELADA))
                 .isEmpty();
     }
 
-    private Entrega entrega(Long pedidoId, EstadoEntrega estado, Repartidor repartidor) {
+    private Entrega entrega(UUID pedidoId, EstadoEntrega estado, Repartidor repartidor) {
         Entrega entrega = new Entrega();
         entrega.setPedidoId(pedidoId);
         entrega.setClienteId(200L);
@@ -89,7 +91,7 @@ class EntregaRepositoryTest {
     @Test
     void guardarEntregaGuardaSuHistorialEnCascada() {
         Entrega entrega = new Entrega();
-        entrega.setPedidoId(100L);
+        entrega.setPedidoId(PedidosClientMock.pedido(100));
         entrega.setClienteId(200L);
         entrega.setComercioId(300L);
         entrega.setDireccionRetiro("Av. Corrientes 1234, CABA");
@@ -114,7 +116,7 @@ class EntregaRepositoryTest {
 
         Entrega leida = entregaRepository.findById(id).orElseThrow();
 
-        assertThat(leida.getPedidoId()).isEqualTo(100L);
+        assertThat(leida.getPedidoId()).isEqualTo(PedidosClientMock.pedido(100));
         assertThat(leida.getCodigoConfirmacion()).isNull();
         assertThat(leida.getHistorial()).hasSize(1);
 

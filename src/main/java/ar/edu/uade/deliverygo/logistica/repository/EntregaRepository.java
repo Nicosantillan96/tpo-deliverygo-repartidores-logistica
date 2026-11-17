@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface EntregaRepository extends JpaRepository<Entrega, Long> {
 
@@ -18,7 +19,7 @@ public interface EntregaRepository extends JpaRepository<Entrega, Long> {
     // REP-06: entrega no cancelada de un pedido, para no duplicarla y
     // reutilizar la que quedo pendiente (RN-11, DM-11)
     Optional<Entrega> findByPedidoIdAndEstadoNot(
-            Long pedidoId,
+            UUID pedidoId,
             EstadoEntrega estado
     );
 }

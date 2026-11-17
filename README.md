@@ -22,6 +22,9 @@ El módulo administra a los repartidores y el ciclo de vida de cada entrega: alt
 | CU-03 | Asignar repartidor a una entrega | `POST /api/v1/deliveries/assign` | 201 asignada / 202 pendiente |
 | CU-04 | Registrar retiro del pedido | `POST /api/v1/deliveries/{id}/pickup` | 200 |
 | CU-05 | Confirmar entrega del pedido | `POST /api/v1/deliveries/{id}/complete` | 200 |
+| Integración | Consultar repartidor (lo usa Opiniones/Analítica) | `GET /api/v1/couriers/{id}` | 200 / 404 |
+
+El `pedidoId` es un UUID, porque así identifica los pedidos el módulo Pedidos. Los demás ids (`clienteId`, `comercioId`, `usuarioId` y los propios del módulo) son números.
 
 Las operaciones del repartidor (CU-02, CU-04 y CU-05) identifican al usuario con el header `X-Usuario-Id`, que simula el `usuarioId` del JWT que emitirá el módulo Usuarios.
 
@@ -45,11 +48,13 @@ $env:JAVA_HOME = "C:\ruta\al\jdk-25"
 
 En Linux o macOS se usa `./mvnw` en lugar de `.\mvnw`.
 
+**Puerto: 8088** (Grupo 8). Está fijo en `application.properties` para no chocar con los otros módulos en la máquina de integración: Usuarios y Pedidos usan el 8080, Catálogo el 8082 y Notificaciones el 8089. Se puede cambiar con la variable de entorno `SERVER_PORT`.
+
 Con la aplicación levantada:
 
-- Swagger UI: http://localhost:8080/swagger-ui.html
-- Contrato OpenAPI: http://localhost:8080/v3/api-docs.yaml
-- Consola de H2: http://localhost:8080/h2-console (JDBC URL `jdbc:h2:mem:logistica`, usuario `sa`, sin contraseña)
+- Swagger UI: http://localhost:8088/swagger-ui.html
+- Contrato OpenAPI: http://localhost:8088/v3/api-docs.yaml
+- Consola de H2: http://localhost:8088/h2-console (JDBC URL `jdbc:h2:mem:logistica`, usuario `sa`, sin contraseña)
 
 La base es en memoria, así que se borra cada vez que se detiene la aplicación.
 
@@ -69,18 +74,18 @@ Ejemplo de recorrido con los datos de demo:
 
 ```bash
 # CU-04: el repartidor del usuario 1 retira el pedido de la entrega 1
-curl -X POST http://localhost:8080/api/v1/deliveries/1/pickup \
+curl -X POST http://localhost:8088/api/v1/deliveries/1/pickup \
   -H "X-Usuario-Id: 1"
 
 # CU-05: el repartidor del usuario 2 confirma la entrega 2 con el código de la consola
-curl -X POST http://localhost:8080/api/v1/deliveries/2/complete \
+curl -X POST http://localhost:8088/api/v1/deliveries/2/complete \
   -H "X-Usuario-Id: 2" -H "Content-Type: application/json" \
   -d '{ "codigoConfirmacion": "1234" }'
 
 # CU-03: se asigna el pedido 102; lo toma el repartidor disponible
-curl -X POST http://localhost:8080/api/v1/deliveries/assign \
+curl -X POST http://localhost:8088/api/v1/deliveries/assign \
   -H "Content-Type: application/json" \
-  -d '{ "pedidoId": 102, "clienteId": 202, "comercioId": 300,
+  -d '{ "pedidoId": "00000000-0000-0000-0000-000000000102", "clienteId": 202, "comercioId": 300,
         "direccionRetiro": "Av. Corrientes 1234, CABA",
         "direccionEntrega": "Lima 757, CABA" }'
 ```
@@ -92,11 +97,13 @@ Los demás módulos de DeliveryGo todavía no están disponibles, así que cada 
 | Módulo | Mock | Comportamiento |
 |---|---|---|
 | Usuarios | `UsuariosClientMock` | Usuarios 1 a 5 elegibles; 6 inactivo; 7 con rol CLIENTE; el resto no existe |
-| Pedidos | `PedidosClientMock` | Pedidos 100 a 105 CONFIRMADOS; 106 PENDIENTE; el resto no existe |
+| Pedidos | `PedidosClientMock` | Pedidos 100 a 105 CONFIRMADOS; 106 PENDIENTE; el resto no existe. Son UUID con el número al final: el 100 es `00000000-0000-0000-0000-000000000100` |
 | Notificaciones | `NotificacionesClientMock` | Solo escribe el aviso en el log |
 | Analítica | `AnaliticaClientMock` | Solo escribe el evento en el log |
 
 Si un aviso a otro módulo falla, la operación no se revierte; el error queda en el log.
+
+CORS está habilitado para `/api/**` (`CorsConfig`), así el Frontend puede llamar a la API desde el navegador. Los orígenes se configuran con `logistica.cors.allowed-origins` (por defecto, cualquiera).
 
 ## Arquitectura
 
