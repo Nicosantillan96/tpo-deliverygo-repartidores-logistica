@@ -163,7 +163,7 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 
 - Se usa `spring-boot-starter-test`. Los tests se mantienen durante el desarrollo.
 - `JAVA_HOME` no está definido en el sistema. Para usar el Maven Wrapper desde la terminal: `JAVA_HOME=C:\Users\NICO\.jdks\ms-25.0.4`.
-- Al final se agregará un `DemoDataLoader` al estilo del ejemplo de clase, con `@Profile("demo")`.
+- `config.DemoDataLoader` (17/11/2026), al estilo del ejemplo de clase: `@Configuration` + `@Bean CommandLineRunner`, con `@Profile("demo")`. Carga los datos usando los services (pasan por las reglas): repartidores de los usuarios 1 (MOTO), 2 (BICICLETA) y 3 (AUTO), entrega del pedido 100 ASIGNADA al 1, del 101 RETIRADA por el 2, y el 3 DISPONIBLE. Imprime en el log los códigos de confirmación (solo para la demo; la API no los expone). Se arranca con `.\mvnw spring-boot:run "-Dspring-boot.run.profiles=demo"`. Probado en `DemoDataLoaderTest`, con una base H2 aparte (`jdbc:h2:mem:demo`).
 
 ## 11. Plan y estado actual
 
@@ -182,7 +182,7 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
   - `GlobalExceptionHandler`: hecho, con `GlobalExceptionHandlerTest`.
   - Controllers: hechos. `RepartidorController` (API-01 POST /api/v1/couriers → 201, API-02 PATCH /api/v1/couriers/{id}/availability → 200) y `EntregaController` (API-03 POST /api/v1/deliveries/assign → 201 o 202, API-04 POST /{id}/pickup → 200 con body opcional, API-05 POST /{id}/complete → 200). Probados de punta a punta con MockMvc en `RepartidorControllerTest` y `EntregaControllerTest`.
   - springdoc: hecho. `springdoc-openapi-starter-webmvc-ui` 2.8.14 (la línea 2.8 es la de Spring Boot 3.x), `config.OpenApiConfig` con el título y la descripción, Swagger UI en `/swagger-ui.html` y contrato en `/v3/api-docs`. Los controllers llevan `@Tag`, `@Operation`, `@ApiResponse` (cada código HTTP con sus códigos de error y el esquema `ErrorResponse`) y `@Parameter`, sin mencionar las RN en las descripciones (03/11/2026). Probado en `OpenApiConfigTest`. El contrato exportado va en `doc/openapi.yaml` (pedido del profesor), junto con la primera entrega.
-  - Pendiente: `DemoDataLoader`.
+  - `DemoDataLoader`: hecho (perfil `demo`).
 - **Paso 3: pruebas integrales y revisión de trazabilidad** entre casos de uso, reglas de negocio y código.
 
 ### Decisiones pendientes
