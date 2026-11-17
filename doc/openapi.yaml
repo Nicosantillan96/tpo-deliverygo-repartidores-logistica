@@ -13,6 +13,8 @@ servers:
 tags:
 - name: Entregas
   description: "Asignación, retiro y confirmación de entregas"
+- name: Estado
+  description: Estado del módulo para la integración
 - name: Repartidores
   description: "Alta, consulta y cambio de disponibilidad de repartidores"
 paths:
@@ -318,6 +320,27 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /status:
+    get:
+      tags:
+      - Estado
+      summary: Estado del módulo
+      description: Confirma que el módulo Logística está levantado y que su base de
+        datos responde.
+      operationId: status
+      responses:
+        "200":
+          description: El módulo funciona (status UP)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "503":
+          description: La base de datos no responde (status DOWN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
   /api/v1/couriers/{id}:
     get:
       tags:
@@ -541,3 +564,15 @@ components:
           - OCUPADO
       required:
       - disponibilidad
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        modulo:
+          type: string
+        baseDeDatos:
+          type: string
+        timestamp:
+          type: string
+          format: date-time

@@ -23,6 +23,7 @@ El módulo administra a los repartidores y el ciclo de vida de cada entrega: alt
 | CU-04 | Registrar retiro del pedido | `POST /api/v1/deliveries/{id}/pickup` | 200 |
 | CU-05 | Confirmar entrega del pedido | `POST /api/v1/deliveries/{id}/complete` | 200 |
 | Integración | Consultar repartidor (lo usa Opiniones/Analítica) | `GET /api/v1/couriers/{id}` | 200 / 404 |
+| Integración | Estado del módulo y de su base de datos | `GET /status` | 200 UP / 503 DOWN |
 
 El `pedidoId` es un UUID, porque así identifica los pedidos el módulo Pedidos. Los demás ids (`clienteId`, `comercioId`, `usuarioId` y los propios del módulo) son números.
 
@@ -52,6 +53,7 @@ En Linux o macOS se usa `./mvnw` en lugar de `.\mvnw`.
 
 Con la aplicación levantada:
 
+- Estado: http://localhost:8088/status → `{ "status": "UP", "modulo": "deliverygo-logistica", "baseDeDatos": "UP", ... }`
 - Swagger UI: http://localhost:8088/swagger-ui.html
 - Contrato OpenAPI: http://localhost:8088/v3/api-docs.yaml
 - Consola de H2: http://localhost:8088/h2-console (JDBC URL `jdbc:h2:mem:logistica`, usuario `sa`, sin contraseña)

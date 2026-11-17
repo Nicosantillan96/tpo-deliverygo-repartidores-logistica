@@ -25,6 +25,7 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.info.title").value("DeliveryGo - Repartidores y Logística"))
                 .andExpect(jsonPath("$.paths['/api/v1/couriers'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/couriers/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/status'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/couriers/{id}/availability'].patch").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/deliveries/assign'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/deliveries/{id}/pickup'].post").exists())
