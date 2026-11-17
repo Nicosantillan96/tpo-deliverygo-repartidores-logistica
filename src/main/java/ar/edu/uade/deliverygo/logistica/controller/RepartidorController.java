@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,13 +23,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-// API-01 y API-02. Solo recibe el pedido, valida el request (@Valid) y delega en el service.
+// API-01, API-02 y la consulta por id. Solo recibe el pedido, valida el request (@Valid) y delega en el service.
 // Los errores los traduce GlobalExceptionHandler.
 // Las anotaciones @Tag, @Operation, @ApiResponse y @Parameter solo documentan la API
 // (Swagger UI y el contrato OpenAPI en /v3/api-docs.yaml); no cambian lo que hace el codigo
 @RestController
 @RequestMapping("/api/v1/couriers")
-@Tag(name = "Repartidores", description = "Alta de repartidores y cambio de disponibilidad")
+@Tag(name = "Repartidores", description = "Alta, consulta y cambio de disponibilidad de repartidores")
 public class RepartidorController {
 
     // RN-10: identidad del usuario que hace el pedido (simula el usuarioId del JWT)
@@ -64,6 +65,24 @@ public class RepartidorController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(repartidorService.registrarRepartidor(request));
+    }
+
+    // Consulta de un repartidor -> 200 (integracion con Opiniones/Analitica, Grupo 4)
+    // GET /api/v1/couriers/{id}
+    @Operation(summary = "Consultar repartidor",
+            description = "Devuelve el repartidor con su estado y su vehículo activo. "
+                    + "El campo activo es true si el estado es ACTIVO.")
+    @ApiResponse(responseCode = "200", description = "Repartidor encontrado")
+    @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: el id no es un número",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "COURIER_NOT_FOUND: el repartidor no existe",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @GetMapping("/{id}")
+    public ResponseEntity<RepartidorResponse> buscarPorId(
+            @Parameter(description = "Id del repartidor", example = "1")
+            @PathVariable Long id) {
+
+        return ResponseEntity.ok(repartidorService.buscarPorId(id));
     }
 
     // API-02 / CU-02: cambiar disponibilidad -> 200

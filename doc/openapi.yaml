@@ -10,10 +10,10 @@ servers:
 - url: http://localhost:8080
   description: Generated server url
 tags:
-- name: Repartidores
-  description: Alta de repartidores y cambio de disponibilidad
 - name: Entregas
   description: "Asignación, retiro y confirmación de entregas"
+- name: Repartidores
+  description: "Alta, consulta y cambio de disponibilidad de repartidores"
 paths:
   /api/v1/deliveries/{id}/pickup:
     post:
@@ -317,6 +317,42 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/couriers/{id}:
+    get:
+      tags:
+      - Repartidores
+      summary: Consultar repartidor
+      description: Devuelve el repartidor con su estado y su vehículo activo. El campo
+        activo es true si el estado es ACTIVO.
+      operationId: buscarPorId
+      parameters:
+      - name: id
+        in: path
+        description: Id del repartidor
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Repartidor encontrado
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RepartidorResponse"
+        "400":
+          description: "VALIDATION_ERROR: el id no es un número"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "COURIER_NOT_FOUND: el repartidor no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     RegistrarRetiroRequest:
@@ -491,6 +527,8 @@ components:
         fechaAlta:
           type: string
           format: date-time
+        activo:
+          type: boolean
     CambiarDisponibilidadRequest:
       type: object
       properties:

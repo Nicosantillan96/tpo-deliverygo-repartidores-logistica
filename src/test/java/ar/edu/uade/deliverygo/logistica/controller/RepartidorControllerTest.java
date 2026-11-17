@@ -10,12 +10,15 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// API-01 y API-02 de punta a punta: HTTP -> controller -> service -> base H2.
+// API-01, API-02, la consulta por id y CORS de punta a punta: HTTP -> controller -> service -> base H2.
 // MockMvc simula las llamadas HTTP sin levantar un servidor real.
 // @Transactional revierte los datos al terminar cada test
 @SpringBootTest
@@ -164,6 +167,46 @@ class RepartidorControllerTest {
                         .content("{ \"disponibilidad\": \"DISPONIBLE\" }"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COURIER_NOT_FOUND"));
+    }
+
+    // ---------- GET /api/v1/couriers/{id} (integracion con Opiniones/Analitica) ----------
+
+    @Test
+    void consultarUnRepartidorDevuelve200ConActivo() throws Exception {
+        Long id = registrar(1L);
+
+        mockMvc.perform(get("/api/v1/couriers/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.estado").value("ACTIVO"))
+                .andExpect(jsonPath("$.activo").value(true))
+                .andExpect(jsonPath("$.vehiculo.tipo").value("BICICLETA"));
+    }
+
+    @Test
+    void consultarUnRepartidorInexistenteDevuelve404() throws Exception {
+        mockMvc.perform(get("/api/v1/couriers/{id}", 999))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURIER_NOT_FOUND"));
+    }
+
+    @Test
+    void consultarConUnIdQueNoEsNumeroDevuelve400() throws Exception {
+        mockMvc.perform(get("/api/v1/couriers/{id}", "abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    // ---------- CORS (Frontend React desde el navegador) ----------
+
+    // El navegador manda primero un OPTIONS ("preflight") para preguntar si puede llamar
+    @Test
+    void elPreflightDeCorsPermiteOtroOrigen() throws Exception {
+        mockMvc.perform(options("/api/v1/couriers")
+                        .header("Origin", "http://10.8.0.6:5173")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://10.8.0.6:5173"));
     }
 
     // ---------- helpers ----------

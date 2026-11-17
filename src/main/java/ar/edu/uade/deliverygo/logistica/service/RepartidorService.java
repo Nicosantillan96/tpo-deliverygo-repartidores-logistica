@@ -129,6 +129,13 @@ public class RepartidorService {
         return repartidorMapper.toResponse(repartidorRepository.save(repartidor));
     }
 
+    // Consulta de un repartidor por id (REP-03). La usa Opiniones/Analitica
+    // para validar que el repartidor existe y esta activo antes de aceptar una resena
+    @Transactional(readOnly = true)
+    public RepartidorResponse buscarPorId(Long id) {
+        return repartidorMapper.toResponse(buscarEntidadPorId(id));
+    }
+
     private Repartidor buscarEntidadPorId(Long id) {
         return repartidorRepository.findById(id).orElseThrow(
                 () -> new ReglaNegocioException(CodigoError.COURIER_NOT_FOUND,

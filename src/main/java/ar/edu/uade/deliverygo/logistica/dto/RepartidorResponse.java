@@ -76,4 +76,10 @@ public class RepartidorResponse {
     public LocalDateTime getFechaAlta() {
         return fechaAlta;
     }
+
+    // Integracion con Opiniones/Analitica (Grupo 4): su cliente de Logistica lee el campo
+    // "activo" (true/false). Se calcula a partir de estado; no es un dato aparte
+    public boolean isActivo() {
+        return estado == EstadoRepartidor.ACTIVO;
+    }
 }
