@@ -37,6 +37,38 @@ class StatusControllerTest {
                 .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 
+    // Misma respuesta en la ruta que usan Usuarios y Analitica
+    @Test
+    void statusTambienRespondeEnApiV1() throws Exception {
+        mockMvc.perform(get("/api/v1/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    // X-Correlation-Id: si viene, se devuelve el mismo; si no, se genera uno
+    @Test
+    void devuelveElCorrelationIdRecibido() throws Exception {
+        mockMvc.perform(get("/status").header("X-Correlation-Id", "prueba-123"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Correlation-Id", "prueba-123"));
+    }
+
+    @Test
+    void generaUnCorrelationIdSiNoViene() throws Exception {
+        mockMvc.perform(get("/status"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Correlation-Id"));
+    }
+
+    // El ErrorResponse usa el mismo correlationId que vino en el pedido
+    @Test
+    void elErrorUsaElCorrelationIdRecibido() throws Exception {
+        mockMvc.perform(get("/api/v1/couriers/{id}", 999).header("X-Correlation-Id", "prueba-456"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().string("X-Correlation-Id", "prueba-456"))
+                .andExpect(jsonPath("$.correlationId").value("prueba-456"));
+    }
+
     // El Frontend puede consultarlo desde el navegador (CORS)
     @Test
     void statusPermiteOtroOrigen() throws Exception {

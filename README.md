@@ -105,6 +105,34 @@ Los demás módulos de DeliveryGo todavía no están disponibles, así que cada 
 
 Si un aviso a otro módulo falla, la operación no se revierte; el error queda en el log.
 
+### Perfil `integracion` (módulos reales)
+
+Con el perfil `integracion`, Logística consulta al módulo **Usuarios real** en lugar del mock (`UsuariosClientHttp`): pide su token de módulo (`POST /api/v1/auth/module-token`) y valida cada usuario con `GET /api/v1/users/{id}/access`. Si Usuarios no responde, CU-01 devuelve 503 `USERS_SERVICE_UNAVAILABLE`.
+
+También usa **Notificaciones real** (`NotificacionesClientHttp`): `POST /api/v1/notifications` con el `usuarioId` del destinatario. Al asignar, el cliente recibe el código de confirmación; al retirar y al entregar, un aviso. Notificaciones solo acepta el JWT de una persona, así que Logística reenvía el `Authorization` del pedido en curso. Las plantillas las crea un ADMIN en Notificaciones y sus ids se pasan por variables; si una falta, ese aviso se omite. Pedidos y Analítica siguen con sus mocks.
+
+```bash
+USUARIOS_BASE_URL=http://localhost:8081 MODULE_KEY_LOGISTICA=<clave del Grupo 2> JWT_SECRET=<secreto JWT de Usuarios> \
+NOTIFICACIONES_BASE_URL=http://localhost:8089 \
+NOTIF_PLANTILLA_ASIGNACION_CLIENTE=<id> NOTIF_PLANTILLA_ASIGNACION_REPARTIDOR=<id> \
+NOTIF_PLANTILLA_RETIRO=<id> NOTIF_PLANTILLA_ENTREGA=<id> \
+  ./mvnw spring-boot:run "-Dspring-boot.run.profiles=integracion"
+```
+
+Variables de las plantillas: asignación al cliente `{entregaId}` y `{codigoConfirmacion}`; las demás, `{entregaId}`.
+
+En la integración no conviene usar el perfil `demo`: registra repartidores para los usuarios 1, 2 y 3, que en Usuarios real son otras personas.
+
+### Identidad del repartidor (JWT)
+
+CU-02, CU-04 y CU-05 toman el usuario del JWT de Usuarios (`Authorization: Bearer <token>`, claim `sub`), validado con el secreto compartido `JWT_SECRET` (HS256). Un token inválido o vencido responde 401 `UNAUTHORIZED`. Sin token se acepta el header `X-Usuario-Id` (pruebas y demo).
+
+### Trazabilidad
+
+Cada pedido lleva el header `X-Correlation-Id`: si viene se usa ese valor y si no se genera uno. Se devuelve en la respuesta, aparece en cada línea del log y en el `correlationId` de los errores, y se reenvía a Usuarios.
+
+El estado del módulo también responde en `GET /api/v1/status`, la misma ruta que usan Usuarios y Analítica.
+
 CORS está habilitado para `/api/**` (`CorsConfig`), así el Frontend puede llamar a la API desde el navegador. Los orígenes se configuran con `logistica.cors.allowed-origins` (por defecto, cualquiera).
 
 ## Arquitectura
@@ -163,4 +191,4 @@ Incluyen tests de entidades, repositorios, services (con la base H2 real), valid
 ## Pendiente
 
 - Casos de uso de evolución (CU-06 a CU-10): aceptar o rechazar la asignación, informar pedido en camino, seguimiento, administración de vehículos y de zonas.
-- Reemplazar los mocks por clientes HTTP cuando los demás módulos publiquen sus APIs, y el header `X-Usuario-Id` por el JWT de Usuarios.
+- Reemplazar los mocks de Pedidos y Analítica por clientes HTTP (Usuarios y Notificaciones ya tienen el suyo en el perfil `integracion`). Para Pedidos falta acordar cómo consultar un pedido sin `X-Cliente-Id`.

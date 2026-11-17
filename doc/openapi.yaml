@@ -3,9 +3,10 @@ info:
   title: DeliveryGo - Repartidores y Logística
   description: "Módulo de repartidores y ciclo de vida de las entregas (CU-01 a CU-05).\
     \ Las operaciones del repartidor (disponibilidad, retiro y confirmación) requieren\
-    \ el header X-Usuario-Id, que simula el usuario del JWT (RN-10). Usuarios de prueba\
-    \ del mock: 1 a 5. El pedidoId es UUID, como en el módulo Pedidos; pedidos confirmados\
-    \ del mock: 00000000-0000-0000-0000-000000000100 a ...000000000105."
+    \ los headers Authorization (Bearer, JWT del módulo Usuarios) o, para pruebas,\
+    \ X-Usuario-Id (RN-10). Usuarios de prueba del mock: 1 a 5. El pedidoId es UUID,\
+    \ como en el módulo Pedidos; pedidos confirmados del mock: 00000000-0000-0000-0000-000000000100\
+    \ a ...000000000105."
   version: "1.0"
 servers:
 - url: http://localhost:8088
@@ -35,13 +36,13 @@ paths:
           type: integer
           format: int64
         example: 1
+      - name: Authorization
+        in: header
+        description: "JWT del módulo Usuarios: Bearer <token>. Identifica al usuario\
+          \ (claim sub)"
       - name: X-Usuario-Id
         in: header
-        description: Id del usuario que hace el pedido (simula el usuario del JWT)
-        required: true
-        schema:
-          type: integer
-          format: int64
+        description: Alternativa para pruebas cuando no se envía Authorization
         example: 1
       requestBody:
         content:
@@ -56,8 +57,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/EntregaResponse"
         "400":
-          description: "VALIDATION_ERROR: observación demasiado larga o falta el header\
-            \ X-Usuario-Id"
+          description: "VALIDATION_ERROR: observación demasiado larga o falta identificar\
+            \ al usuario (Authorization o X-Usuario-Id)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: "UNAUTHORIZED: el token es inválido o está vencido"
           content:
             '*/*':
               schema:
@@ -97,13 +104,13 @@ paths:
           type: integer
           format: int64
         example: 1
+      - name: Authorization
+        in: header
+        description: "JWT del módulo Usuarios: Bearer <token>. Identifica al usuario\
+          \ (claim sub)"
       - name: X-Usuario-Id
         in: header
-        description: Id del usuario que hace el pedido (simula el usuario del JWT)
-        required: true
-        schema:
-          type: integer
-          format: int64
+        description: Alternativa para pruebas cuando no se envía Authorization
         example: 1
       requestBody:
         content:
@@ -119,8 +126,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/EntregaResponse"
         "400":
-          description: "VALIDATION_ERROR: falta el código de confirmación o el header\
-            \ X-Usuario-Id"
+          description: "VALIDATION_ERROR: falta el código de confirmación o identificar\
+            \ al usuario (Authorization o X-Usuario-Id)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: "UNAUTHORIZED: el token es inválido o está vencido"
           content:
             '*/*':
               schema:
@@ -268,13 +281,13 @@ paths:
           type: integer
           format: int64
         example: 1
+      - name: Authorization
+        in: header
+        description: "JWT del módulo Usuarios: Bearer <token>. Identifica al usuario\
+          \ (claim sub)"
       - name: X-Usuario-Id
         in: header
-        description: Id del usuario que hace el pedido (simula el usuario del JWT)
-        required: true
-        schema:
-          type: integer
-          format: int64
+        description: Alternativa para pruebas cuando no se envía Authorization
         example: 1
       requestBody:
         content:
@@ -291,7 +304,13 @@ paths:
                 $ref: "#/components/schemas/RepartidorResponse"
         "400":
           description: "VALIDATION_ERROR: falta la disponibilidad, se pidió OCUPADO,\
-            \ el valor no existe o falta el header X-Usuario-Id"
+            \ el valor no existe o falta identificar al usuario (Authorization o X-Usuario-Id)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: "UNAUTHORIZED: el token es inválido o está vencido"
           content:
             '*/*':
               schema:
@@ -328,6 +347,27 @@ paths:
       description: Confirma que el módulo Logística está levantado y que su base de
         datos responde.
       operationId: status
+      responses:
+        "200":
+          description: El módulo funciona (status UP)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "503":
+          description: La base de datos no responde (status DOWN)
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+  /api/v1/status:
+    get:
+      tags:
+      - Estado
+      summary: Estado del módulo
+      description: Confirma que el módulo Logística está levantado y que su base de
+        datos responde.
+      operationId: status_1
       responses:
         "200":
           description: El módulo funciona (status UP)

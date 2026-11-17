@@ -11,6 +11,8 @@ public enum CodigoError {
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST),
     VEHICLE_PLATE_REQUIRED(HttpStatus.BAD_REQUEST),
 
+    // 401: el JWT de Usuarios es invalido o esta vencido (RN-10, integracion)
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED),
     // 403: el usuario no es el titular o no es el repartidor asignado (RN-10)
     FORBIDDEN(HttpStatus.FORBIDDEN),
     COURIER_NOT_ASSIGNED(HttpStatus.FORBIDDEN),
@@ -36,7 +38,9 @@ public enum CodigoError {
     COURIER_INACTIVE(HttpStatus.UNPROCESSABLE_ENTITY),
     COURIER_NOT_AVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY),
     ORDER_NOT_CONFIRMED(HttpStatus.UNPROCESSABLE_ENTITY),
-    INVALID_CONFIRMATION_CODE(HttpStatus.UNPROCESSABLE_ENTITY);
+    INVALID_CONFIRMATION_CODE(HttpStatus.UNPROCESSABLE_ENTITY),
+    // 503: el modulo Usuarios no responde (CU-01 A6)
+    USERS_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE);
 
     private final HttpStatus status;
 

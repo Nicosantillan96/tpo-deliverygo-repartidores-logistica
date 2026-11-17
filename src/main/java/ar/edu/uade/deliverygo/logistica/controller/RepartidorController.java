@@ -5,8 +5,10 @@ import ar.edu.uade.deliverygo.logistica.dto.ErrorResponse;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRepartidorRequest;
 import ar.edu.uade.deliverygo.logistica.dto.RepartidorResponse;
 import ar.edu.uade.deliverygo.logistica.service.RepartidorService;
+import ar.edu.uade.deliverygo.logistica.config.UsuarioAutenticado;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -19,7 +21,6 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -86,14 +87,20 @@ public class RepartidorController {
     }
 
     // API-02 / CU-02: cambiar disponibilidad -> 200
-    // PATCH /api/v1/couriers/{id}/availability   (header X-Usuario-Id: 1)
+    // PATCH /api/v1/couriers/{id}/availability   (Authorization: Bearer <JWT> o X-Usuario-Id: 1)
     // { "disponibilidad": "DISPONIBLE" }
+    @Parameter(in = ParameterIn.HEADER, name = "Authorization", required = false,
+            description = "JWT del módulo Usuarios: Bearer <token>. Identifica al usuario (claim sub)")
+    @Parameter(in = ParameterIn.HEADER, name = "X-Usuario-Id", required = false, example = "1",
+            description = "Alternativa para pruebas cuando no se envía Authorization")
     @Operation(summary = "CU-02 Cambiar disponibilidad del repartidor",
             description = "El repartidor titular se pone DISPONIBLE o NO_DISPONIBLE. "
                     + "OCUPADO lo maneja solo el sistema. Pedir el mismo valor no es un error.")
     @ApiResponse(responseCode = "200", description = "Disponibilidad actualizada")
     @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: falta la disponibilidad, "
-            + "se pidió OCUPADO, el valor no existe o falta el header X-Usuario-Id",
+            + "se pidió OCUPADO, el valor no existe o falta identificar al usuario (Authorization o X-Usuario-Id)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "401", description = "UNAUTHORIZED: el token es inválido o está vencido",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "403", description = "FORBIDDEN: el usuario no es el titular del repartidor",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
@@ -107,9 +114,7 @@ public class RepartidorController {
     public ResponseEntity<RepartidorResponse> cambiarDisponibilidad(
             @Parameter(description = "Id del repartidor", example = "1")
             @PathVariable Long id,
-            @Parameter(description = "Id del usuario que hace el pedido (simula el usuario del JWT)",
-                    example = "1")
-            @RequestHeader(HEADER_USUARIO) Long usuarioId,
+            @UsuarioAutenticado Long usuarioId,
             @Valid @RequestBody CambiarDisponibilidadRequest request) {
 
         return ResponseEntity.ok(

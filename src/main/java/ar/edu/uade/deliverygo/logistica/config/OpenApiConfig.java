@@ -18,7 +18,7 @@ public class OpenApiConfig {
                 .version("1.0")
                 .description("Módulo de repartidores y ciclo de vida de las entregas (CU-01 a CU-05). "
                         + "Las operaciones del repartidor (disponibilidad, retiro y confirmación) "
-                        + "requieren el header X-Usuario-Id, que simula el usuario del JWT (RN-10). "
+                        + "requieren los headers Authorization (Bearer, JWT del módulo Usuarios) o, para pruebas, X-Usuario-Id (RN-10). "
                         + "Usuarios de prueba del mock: 1 a 5. El pedidoId es UUID, como en el módulo Pedidos; "
                         + "pedidos confirmados del mock: 00000000-0000-0000-0000-000000000100 a ...000000000105."));
     }

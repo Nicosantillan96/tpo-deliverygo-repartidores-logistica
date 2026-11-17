@@ -108,7 +108,7 @@ public class EntregaService {
         // INT-05: avisos no bloqueantes (DM-12)
         avisarSinRevertir("asignacion de la entrega " + guardada.getId(),
                 () -> notificacionesClient.avisarAsignacion(guardada.getId(),
-                        repartidor.getId(), guardada.getClienteId(),
+                        repartidor.getUsuarioId(), guardada.getClienteId(),
                         guardada.getCodigoConfirmacion()));
 
         return entregaMapper.toResponse(guardada);

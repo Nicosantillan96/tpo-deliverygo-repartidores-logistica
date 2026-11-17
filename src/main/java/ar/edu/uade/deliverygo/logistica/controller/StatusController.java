@@ -26,7 +26,8 @@ public class StatusController {
             description = "Confirma que el módulo Logística está levantado y que su base de datos responde.")
     @ApiResponse(responseCode = "200", description = "El módulo funciona (status UP)")
     @ApiResponse(responseCode = "503", description = "La base de datos no responde (status DOWN)")
-    @GetMapping("/status")
+    // Responde en /status y tambien en /api/v1/status, la ruta que usan Usuarios y Analitica
+    @GetMapping({"/status", "/api/v1/status"})
     public ResponseEntity<StatusResponse> status() {
         StatusResponse estado = statusService.consultarEstado();
         HttpStatus codigo = StatusResponse.UP.equals(estado.getStatus())

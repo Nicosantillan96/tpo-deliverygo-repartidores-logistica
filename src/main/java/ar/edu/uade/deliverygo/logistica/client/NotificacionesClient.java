@@ -5,9 +5,10 @@ package ar.edu.uade.deliverygo.logistica.client;
 // si fallan, la operacion no se revierte (DM-12).
 public interface NotificacionesClient {
 
-    // CU-03: avisa al repartidor que tiene una entrega y le manda al cliente
+    // CU-03: avisa al repartidor (por su usuarioId, que es como lo identifica Notificaciones)
+    // que tiene una entrega y le manda al cliente
     // el codigo de confirmacion (RN-13)
-    void avisarAsignacion(Long entregaId, Long repartidorId, Long clienteId,
+    void avisarAsignacion(Long entregaId, Long usuarioRepartidorId, Long clienteId,
                           String codigoConfirmacion);
 
     // CU-04: avisa al cliente que el repartidor retiro el pedido

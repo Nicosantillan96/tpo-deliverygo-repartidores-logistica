@@ -7,8 +7,10 @@ import ar.edu.uade.deliverygo.logistica.dto.ErrorResponse;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
 import ar.edu.uade.deliverygo.logistica.service.EntregaService;
+import ar.edu.uade.deliverygo.logistica.config.UsuarioAutenticado;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -19,13 +21,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Objects;
-
-import static ar.edu.uade.deliverygo.logistica.controller.RepartidorController.HEADER_USUARIO;
 
 // API-03, API-04 y API-05. Solo recibe el pedido, valida el request (@Valid) y delega
 // en el service. Los errores los traduce GlobalExceptionHandler.
@@ -77,14 +76,20 @@ public class EntregaController {
     }
 
     // API-04 / CU-04: registrar retiro -> 200
-    // POST /api/v1/deliveries/{id}/pickup   (header X-Usuario-Id: 1)
+    // POST /api/v1/deliveries/{id}/pickup   (Authorization: Bearer <JWT> o X-Usuario-Id: 1)
     // { "observacion": "Retirado en mostrador" }   (el body es opcional)
+    @Parameter(in = ParameterIn.HEADER, name = "Authorization", required = false,
+            description = "JWT del módulo Usuarios: Bearer <token>. Identifica al usuario (claim sub)")
+    @Parameter(in = ParameterIn.HEADER, name = "X-Usuario-Id", required = false, example = "1",
+            description = "Alternativa para pruebas cuando no se envía Authorization")
     @Operation(summary = "CU-04 Registrar retiro del pedido",
             description = "El repartidor asignado informa que retiró el pedido del comercio: "
                     + "ASIGNADA pasa a RETIRADA. El body con la observación es opcional.")
     @ApiResponse(responseCode = "200", description = "Entrega RETIRADA")
     @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: observación demasiado larga "
-            + "o falta el header X-Usuario-Id",
+            + "o falta identificar al usuario (Authorization o X-Usuario-Id)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "401", description = "UNAUTHORIZED: el token es inválido o está vencido",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "403", description = "COURIER_NOT_ASSIGNED: el usuario no es el repartidor asignado",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
@@ -96,9 +101,7 @@ public class EntregaController {
     public ResponseEntity<EntregaResponse> registrarRetiro(
             @Parameter(description = "Id de la entrega", example = "1")
             @PathVariable Long id,
-            @Parameter(description = "Id del usuario que hace el pedido (simula el usuario del JWT)",
-                    example = "1")
-            @RequestHeader(HEADER_USUARIO) Long usuarioId,
+            @UsuarioAutenticado Long usuarioId,
             @Valid @RequestBody(required = false) RegistrarRetiroRequest request) {
 
         RegistrarRetiroRequest retiro = Objects.isNull(request) ? new RegistrarRetiroRequest() : request;
@@ -106,14 +109,20 @@ public class EntregaController {
     }
 
     // API-05 / CU-05: confirmar entrega -> 200
-    // POST /api/v1/deliveries/{id}/complete   (header X-Usuario-Id: 1)
+    // POST /api/v1/deliveries/{id}/complete   (Authorization: Bearer <JWT> o X-Usuario-Id: 1)
     // { "codigoConfirmacion": "4821" }
+    @Parameter(in = ParameterIn.HEADER, name = "Authorization", required = false,
+            description = "JWT del módulo Usuarios: Bearer <token>. Identifica al usuario (claim sub)")
+    @Parameter(in = ParameterIn.HEADER, name = "X-Usuario-Id", required = false, example = "1",
+            description = "Alternativa para pruebas cuando no se envía Authorization")
     @Operation(summary = "CU-05 Confirmar entrega del pedido",
             description = "El repartidor asignado confirma la entrega con el código que le da el cliente. "
                     + "La entrega pasa a COMPLETADA y el repartidor vuelve a DISPONIBLE.")
     @ApiResponse(responseCode = "200", description = "Entrega COMPLETADA")
     @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: falta el código de confirmación "
-            + "o el header X-Usuario-Id",
+            + "o identificar al usuario (Authorization o X-Usuario-Id)",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "401", description = "UNAUTHORIZED: el token es inválido o está vencido",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "403", description = "COURIER_NOT_ASSIGNED: el usuario no es el repartidor asignado",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
@@ -129,9 +138,7 @@ public class EntregaController {
     public ResponseEntity<EntregaResponse> confirmarEntrega(
             @Parameter(description = "Id de la entrega", example = "1")
             @PathVariable Long id,
-            @Parameter(description = "Id del usuario que hace el pedido (simula el usuario del JWT)",
-                    example = "1")
-            @RequestHeader(HEADER_USUARIO) Long usuarioId,
+            @UsuarioAutenticado Long usuarioId,
             @Valid @RequestBody ConfirmarEntregaRequest request) {
 
         return ResponseEntity.ok(entregaService.confirmarEntrega(id, request, usuarioId));

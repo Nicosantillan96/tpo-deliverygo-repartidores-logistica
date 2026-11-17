@@ -1,5 +1,6 @@
 package ar.edu.uade.deliverygo.logistica.excepcion;
 
+import ar.edu.uade.deliverygo.logistica.config.CorrelationIdFilter;
 import ar.edu.uade.deliverygo.logistica.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -14,13 +15,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 // Traduce las excepciones al formato normalizado de error (DTO-08, seccion 17).
 //un @RestControllerAdvice con un @ExceptionHandler por tipo de excepcion. El codigo HTTP de cada error de negocio sale de CodigoError.
-// Cada respuesta lleva un correlationId nuevo que tambien se escribe en el log,
-// para poder encontrar el error a partir de lo que vio el cliente.
+// Cada respuesta lleva el correlationId del pedido (el X-Correlation-Id recibido, o uno
+// nuevo si no vino), que tambien se escribe en el log, para poder encontrar el error
+// a partir de lo que vio el cliente.
 // Los errores no previstos (500) y los propios de Spring (URL inexistente 404,
 // metodo no permitido 405) no se capturan aca: los responde Spring con su formato.
 @RestControllerAdvice
@@ -80,10 +81,11 @@ public class GlobalExceptionHandler {
                 "Los datos fueron modificados por otra operación. Intente nuevamente", request);
     }
 
-    // Arma el ErrorResponse con un correlationId nuevo y lo deja tambien en el log
+    // Arma el ErrorResponse con el correlationId del pedido (X-Correlation-Id, ver
+    // CorrelationIdFilter) y lo deja tambien en el log
     private ResponseEntity<ErrorResponse> responder(CodigoError codigo, String mensaje,
                                                     HttpServletRequest request) {
-        String correlationId = UUID.randomUUID().toString();
+        String correlationId = CorrelationIdFilter.actual();
         log.warn("[{}] {} {} en {}: {}", correlationId, codigo.getStatus().value(), codigo,
                 request.getRequestURI(), mensaje);
         ErrorResponse error = new ErrorResponse(

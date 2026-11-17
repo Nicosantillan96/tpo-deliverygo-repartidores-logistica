@@ -24,7 +24,9 @@ public class CorsConfig implements WebMvcConfigurer {
         registry.addMapping("/api/**")
                 .allowedOriginPatterns(origenesPermitidos)
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                .allowedHeaders("*");
+                .allowedHeaders("*")
+                // Para que el JavaScript del Frontend pueda leer el X-Correlation-Id de la respuesta
+                .exposedHeaders(CorrelationIdFilter.HEADER);
         // GET /status, para que el Frontend tambien pueda comprobar que el modulo esta levantado
         registry.addMapping("/status")
                 .allowedOriginPatterns(origenesPermitidos)

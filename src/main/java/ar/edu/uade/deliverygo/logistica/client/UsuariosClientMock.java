@@ -1,16 +1,19 @@
 package ar.edu.uade.deliverygo.logistica.client;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-// Mock declarado de INT-01 mientras el modulo Usuarios no este disponible
-// (seccion 11 de la primera entrega). Simula los usuarios con una lista fija:
+// Mock declarado de INT-01 (seccion 11 de la primera entrega). Se usa sin el perfil
+// "integracion" (tests y demo); con ese perfil lo reemplaza UsuariosClientHttp, que consulta
+// al modulo Usuarios real. Simula los usuarios con una lista fija:
 // - 1 a 5: activos y con rol REPARTIDOR -> se pueden registrar como repartidores
 // - 6: inactivo -> USER_NOT_ELIGIBLE
 // - 7: rol CLIENTE -> USER_NOT_ELIGIBLE
 // - cualquier otro: no existe -> USER_NOT_ELIGIBLE
 @Component
+@Profile("!integracion")
 public class UsuariosClientMock implements UsuariosClient {
 
     private static final Map<Long, UsuarioExterno> USUARIOS = Map.of(
