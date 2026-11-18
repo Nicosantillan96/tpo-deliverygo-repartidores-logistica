@@ -107,12 +107,12 @@ Si un aviso a otro módulo falla, la operación no se revierte; el error queda e
 
 ### Perfil `integracion` (módulos reales)
 
-Con el perfil `integracion`, Logística consulta al módulo **Usuarios real** en lugar del mock (`UsuariosClientHttp`): pide su token de módulo (`POST /api/v1/auth/module-token`) y valida cada usuario con `GET /api/v1/users/{id}/access`. Si Usuarios no responde, CU-01 devuelve 503 `USERS_SERVICE_UNAVAILABLE`.
+Con el perfil `integracion`, Logística consulta al módulo **Usuarios real** en lugar del mock (`UsuariosClientHttp`): valida cada usuario con `GET /api/v1/users/{id}/access`, sin credencial (así lo definió Usuarios para las consultas entre módulos). Si Usuarios no responde, CU-01 devuelve 503 `USERS_SERVICE_UNAVAILABLE`.
 
 También usa **Notificaciones real** (`NotificacionesClientHttp`): `POST /api/v1/notifications` con el `usuarioId` del destinatario. Al asignar, el cliente recibe el código de confirmación; al retirar y al entregar, un aviso. Notificaciones solo acepta el JWT de una persona, así que Logística reenvía el `Authorization` del pedido en curso. Las plantillas las crea un ADMIN en Notificaciones y sus ids se pasan por variables; si una falta, ese aviso se omite. Pedidos y Analítica siguen con sus mocks.
 
 ```bash
-USUARIOS_BASE_URL=http://localhost:8081 MODULE_KEY_LOGISTICA=<clave del Grupo 2> JWT_SECRET=<secreto JWT de Usuarios> \
+USUARIOS_BASE_URL=http://localhost:8081 JWT_SECRET=<secreto JWT de Usuarios> \
 NOTIFICACIONES_BASE_URL=http://localhost:8089 \
 NOTIF_PLANTILLA_ASIGNACION_CLIENTE=<id> NOTIF_PLANTILLA_ASIGNACION_REPARTIDOR=<id> \
 NOTIF_PLANTILLA_RETIRO=<id> NOTIF_PLANTILLA_ENTREGA=<id> \

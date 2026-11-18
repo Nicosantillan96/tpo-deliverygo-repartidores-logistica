@@ -12,8 +12,6 @@ import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.test.web.client.ExpectedCount.once;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.headerDoesNotExist;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -21,15 +19,11 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-// INT-01 real contra un Usuarios simulado (MockRestServiceServer): se verifica que pida el token
-// de modulo, consulte /access con ese token y traduzca las respuestas
+// INT-01 real contra un Usuarios simulado (MockRestServiceServer): se verifica que consulte /access
+// sin credencial y traduzca las respuestas
 class UsuariosClientHttpTest {
 
     private static final String BASE = "http://usuarios";
-    private static final String TOKEN = """
-            { "token": "token-modulo", "tipo": "Bearer", "expiraEn": "2999-01-01T00:00:00Z",
-              "modulo": "logistica", "rol": "MODULO" }
-            """;
 
     private MockRestServiceServer usuarios;
     private UsuariosClientHttp client;
@@ -38,15 +32,14 @@ class UsuariosClientHttpTest {
     void armar() {
         RestClient.Builder builder = RestClient.builder();
         usuarios = MockRestServiceServer.bindTo(builder).build();
-        client = new UsuariosClientHttp(builder, BASE, "clave-de-prueba-1234567", true);
+        client = new UsuariosClientHttp(builder, BASE, true);
     }
 
     @Test
-    void pideElTokenYTraduceElAcceso() {
-        esperarToken();
-        usuarios.expect(once(), requestTo(BASE + "/api/v1/users/4/access"))
+    void consultaElAccesoSinCredencialYLoTraduce() {
+        usuarios.expect(requestTo(BASE + "/api/v1/users/4/access"))
                 .andExpect(method(HttpMethod.GET))
-                .andExpect(header("Authorization", "Bearer token-modulo"))
+                .andExpect(headerDoesNotExist("Authorization"))
                 .andExpect(header("X-Correlation-Id", org.hamcrest.Matchers.notNullValue()))
                 .andRespond(withSuccess("""
                         { "usuarioId": 4, "estado": "ACTIVO", "rol": "CLIENTE" }
@@ -61,24 +54,16 @@ class UsuariosClientHttpTest {
     }
 
     @Test
-    void reutilizaElTokenEnLaSegundaConsulta() {
-        esperarToken();
-        usuarios.expect(requestTo(BASE + "/api/v1/users/4/access"))
-                .andRespond(withSuccess("{\"usuarioId\":4,\"estado\":\"INACTIVO\",\"rol\":\"REPARTIDOR\"}",
-                        MediaType.APPLICATION_JSON));
+    void unUsuarioInactivoQuedaComoNoActivo() {
         usuarios.expect(requestTo(BASE + "/api/v1/users/5/access"))
-                .andExpect(header("Authorization", "Bearer token-modulo"))
-                .andRespond(withSuccess("{\"usuarioId\":5,\"estado\":\"ACTIVO\",\"rol\":\"REPARTIDOR\"}",
+                .andRespond(withSuccess("{\"usuarioId\":5,\"estado\":\"INACTIVO\",\"rol\":\"REPARTIDOR\"}",
                         MediaType.APPLICATION_JSON));
 
-        assertThat(client.buscarUsuario(4L).isActivo()).isFalse();
-        assertThat(client.buscarUsuario(5L).getRol()).isEqualTo("REPARTIDOR");
-        usuarios.verify();
+        assertThat(client.buscarUsuario(5L).isActivo()).isFalse();
     }
 
     @Test
     void siElUsuarioNoExisteDevuelveNull() {
-        esperarToken();
         usuarios.expect(requestTo(BASE + "/api/v1/users/999/access"))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND));
 
@@ -87,45 +72,11 @@ class UsuariosClientHttpTest {
 
     @Test
     void siUsuariosFallaInforma503() {
-        esperarToken();
         usuarios.expect(requestTo(BASE + "/api/v1/users/4/access"))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
 
         assertThatThrownBy(() -> client.buscarUsuario(4L))
                 .isInstanceOf(ReglaNegocioException.class)
                 .extracting("codigo").isEqualTo(CodigoError.USERS_SERVICE_UNAVAILABLE);
-    }
-
-    @Test
-    void siLaClaveDeModuloEsIncorrectaInforma503() {
-        usuarios.expect(requestTo(BASE + "/api/v1/auth/module-token"))
-                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
-
-        assertThatThrownBy(() -> client.buscarUsuario(4L))
-                .isInstanceOf(ReglaNegocioException.class)
-                .extracting("codigo").isEqualTo(CodigoError.USERS_SERVICE_UNAVAILABLE);
-    }
-
-    // Si Usuarios rechaza el token (vencio o se reinicio), pide uno nuevo y reintenta una vez
-    @Test
-    void siElTokenFueRechazadoPideOtroYReintenta() {
-        esperarToken();
-        usuarios.expect(requestTo(BASE + "/api/v1/users/4/access"))
-                .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
-        esperarToken();
-        usuarios.expect(requestTo(BASE + "/api/v1/users/4/access"))
-                .andRespond(withSuccess("{\"usuarioId\":4,\"estado\":\"ACTIVO\",\"rol\":\"REPARTIDOR\"}",
-                        MediaType.APPLICATION_JSON));
-
-        assertThat(client.buscarUsuario(4L).getRol()).isEqualTo("REPARTIDOR");
-        usuarios.verify();
-    }
-
-    private void esperarToken() {
-        usuarios.expect(requestTo(BASE + "/api/v1/auth/module-token"))
-                .andExpect(method(HttpMethod.POST))
-                .andExpect(headerDoesNotExist("Authorization"))
-                .andExpect(content().json("{\"modulo\":\"logistica\",\"clave\":\"clave-de-prueba-1234567\"}"))
-                .andRespond(withSuccess(TOKEN, MediaType.APPLICATION_JSON));
     }
 }
