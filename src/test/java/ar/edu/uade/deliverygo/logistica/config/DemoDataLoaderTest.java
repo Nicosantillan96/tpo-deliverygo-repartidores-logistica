@@ -1,13 +1,22 @@
 package ar.edu.uade.deliverygo.logistica.config;
 
+import ar.edu.uade.deliverygo.logistica.dto.RepartidorResponse;
+import ar.edu.uade.deliverygo.logistica.dto.VehiculoResponse;
+import ar.edu.uade.deliverygo.logistica.dto.ZonaResponse;
 import ar.edu.uade.deliverygo.logistica.model.Disponibilidad;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
+import ar.edu.uade.deliverygo.logistica.model.TipoVehiculo;
 import ar.edu.uade.deliverygo.logistica.repository.EntregaRepository;
 import ar.edu.uade.deliverygo.logistica.repository.RepartidorRepository;
+import ar.edu.uade.deliverygo.logistica.service.EntregaService;
+import ar.edu.uade.deliverygo.logistica.service.RepartidorService;
+import ar.edu.uade.deliverygo.logistica.service.ZonaService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,6 +32,15 @@ class DemoDataLoaderTest {
 
     @Autowired
     private EntregaRepository entregaRepository;
+
+    @Autowired
+    private RepartidorService repartidorService;
+
+    @Autowired
+    private EntregaService entregaService;
+
+    @Autowired
+    private ZonaService zonaService;
 
     @Test
     void cargaTresRepartidoresYDosEntregas() {
@@ -51,5 +69,42 @@ class DemoDataLoaderTest {
     void lasEntregasTienenCodigoDeConfirmacion() {
         assertThat(entregaRepository.findAll())
                 .allSatisfy(e -> assertThat(e.getCodigoConfirmacion()).matches("\\d{4}"));
+    }
+
+    // CU-10: dos zonas; el repartidor del auto (usuario 3) trabaja en Centro
+    @Test
+    void cargaDosZonasYElRepartidorDelAutoEstaEnCentro() {
+        List<ZonaResponse> zonas = zonaService.listarZonas();
+        assertThat(zonas).extracting(ZonaResponse::getNombre).containsExactly("Centro", "Palermo");
+
+        RepartidorResponse auto = repartidorService.buscarPorId(idDelUsuario(3L));
+        assertThat(auto.getZonaId()).isEqualTo(zonas.get(0).getId());
+    }
+
+    // CU-09: el repartidor del auto tiene el auto activo y una bicicleta inactiva
+    @Test
+    void elRepartidorDelAutoTieneUnaBicicletaInactiva() {
+        List<VehiculoResponse> vehiculos = repartidorService.listarVehiculos(idDelUsuario(3L));
+
+        assertThat(vehiculos).hasSize(2);
+        assertThat(vehiculos).filteredOn(VehiculoResponse::isActivo)
+                .extracting(VehiculoResponse::getTipo).containsExactly(TipoVehiculo.AUTO);
+        assertThat(vehiculos).filteredOn(v -> !v.isActivo())
+                .extracting(VehiculoResponse::getTipo).containsExactly(TipoVehiculo.BICICLETA);
+    }
+
+    // CU-08: la entrega retirada ya tiene su historial (creacion, asignacion y retiro)
+    @Test
+    void laEntregaRetiradaTieneSuHistorial() {
+        Long retirada = entregaRepository.findByPedidoIdAndEstadoNot(101L, EstadoEntrega.CANCELADA)
+                .orElseThrow().getId();
+
+        assertThat(entregaService.consultarSeguimiento(retirada).getHistorial()).hasSize(3);
+    }
+
+    private Long idDelUsuario(Long usuarioId) {
+        return repartidorRepository.findAll().stream()
+                .filter(r -> usuarioId.equals(r.getUsuarioId()))
+                .findFirst().orElseThrow().getId();
     }
 }
