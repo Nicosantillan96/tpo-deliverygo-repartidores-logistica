@@ -22,7 +22,7 @@ Respetar las versiones y dependencias ya definidas en pom.xml.
 
 ## 3. Alcance
 
-Implementar primero los casos de uso CORE:
+Casos de uso CORE (implementados):
 
 - CU-01: Registrar repartidor.
 - CU-02: Cambiar disponibilidad del repartidor.
@@ -30,7 +30,13 @@ Implementar primero los casos de uso CORE:
 - CU-04: Registrar retiro del pedido.
 - CU-05: Confirmar entrega del pedido.
 
-No implementar CU-06 a CU-10 hasta que se solicite expresamente.
+Casos de uso de evolución (implementados el 22/11/2026, rama `examen`):
+
+- CU-06: Aceptar o rechazar la asignación.
+- CU-07: Informar pedido en camino.
+- CU-08: Consultar seguimiento de la entrega (y datos del repartidor).
+- CU-09: Administrar vehículos del repartidor.
+- CU-10: Administrar zonas de operación.
 
 No agregar funcionalidades fuera del alcance sin justificar su necesidad.
 
@@ -119,6 +125,8 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 
 ### Referencias
 
+- Ramas: `examen` es la versión que se defiende ante el profesor (CU-01 a CU-10, mocks y `DemoDataLoader` para la demostración). `main` quedó como demostración de la integración con los otros módulos (pedidoId UUID, JWT, CORS, `/status`, clientes HTTP). Las dos ramas no se mergean entre sí.
+
 - Especificación: `Grupo08_Primera_Entrega_Repartidores_y_Logistica.docx` (fuera del repositorio, en `Desktop\DESAROLLO DE APPS`). Es la versión vigente; el PDF del escritorio es anterior.
 - Ejemplo de clase del profesor: carpeta `deliverygo-persistence 2` (fuera del repositorio). Muestra cómo espera la cátedra que se trabaje.
 - Ante una diferencia entre la especificación y el ejemplo de clase, señalarla y consultar. Por defecto se sigue el ejemplo de clase.
@@ -129,11 +137,11 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 - Paquete base `ar.edu.uade.deliverygo.logistica`, con subpaquetes `model`, `dto`, `mapper`, `repository`, `service`, `excepcion`, `client`, `controller` y `config`. La conversión entidad → Response la hacen `RepartidorMapper` y `EntregaMapper` (`@Component`, método `toResponse`), como prevé la sección 12 de la especificación (03/11/2026; antes estaba en cada service como `convertirResponse`, al estilo del `convertirDTO` de clase). La creación de entidades a partir de un Request queda en el service, porque se combina con reglas (estado inicial, fecha de alta).
 - DTO como clases con getters y setters, sin Lombok. Los requests tienen constructor vacío y setters; los responses tienen campos `final` y solo getters.
 - DTO: regla única en todo el módulo, como la filmina de la cátedra ("Validación en la Frontera") y la sección 15 de la especificación: lo que entra es un `...Request` validado con `@Valid`; lo que sale es un `...Response`. Se probó un único `RepartidorDTO` (DM-13, 01/11/2026) y se revirtió el mismo día para tener una sola regla y `@Valid` en todos los endpoints. `RepartidorResponse` incluye `dni` y `telefono` (DTO-02 de la especificación no los incluía).
-- Los requests no tienen campos que define el sistema (`id`, `estado`, `disponibilidad` en el alta, `fechaAlta`) ni datos de identidad (`repartidorId`/`usuarioId` en CU-02, CU-04 y CU-05, RN-10). `EntregaResponse` no tiene el código de confirmación (RN-13).
+- Los requests no tienen campos que define el sistema (`id`, `estado`, `disponibilidad` en el alta, `fechaAlta`) ni datos de identidad (`repartidorId`/`usuarioId` en CU-02 y CU-04 a CU-07, CU-09 y CU-10, RN-10). `EntregaResponse` no tiene el código de confirmación (RN-13).
 - Limpieza (03/11/2026): se borraron `VehiculoService` y `HistorialEstadoEntregaService` (vacíos), `HistorialEstadoEntregaRepository` y `VehiculoRepository` (sin uso y fuera de la especificación). Vehículos e historial se guardan siempre en cascada desde `Repartidor` y `Entrega`.
 - Validación de entrada (RN-01) con Bean Validation: anotaciones en los requests y `@Valid` en el controller. Las reglas que dependen de otro campo o de una consulta (RN-02, RN-03, RN-04, RN-05, RN-07, RN-10) van en el service o en la entidad. Las restricciones de la base (`nullable`, `unique`) se mantienen como defensa en profundidad.
 - RN-03 / INT-01: interfaz `client.UsuariosClient` implementada por `UsuariosClientMock` (usuarios 1 a 5 elegibles, 6 inactivo, 7 rol CLIENTE). Cuando exista el módulo Usuarios se agrega una implementación HTTP sin tocar el service.
-- INT-03 y INT-05: `PedidosClient` + `PedidosClientMock` (pedidos 100 a 105 CONFIRMADOS, 106 PENDIENTE, el resto no existe) `NotificacionesClient` + `NotificacionesClientMock` y `AnaliticaClient` + `AnaliticaClientMock` (INT-06, evento DELIVERY_COMPLETED con los tiempos); los mocks de avisos solo loguean. `PedidosClient.informarEstadoEntrega` cubre INT-04 (endpoint a acordar con Pedidos). Los avisos a Pedidos y Notificaciones no revierten la operación si fallan (DM-12): `EntregaService.avisarSinRevertir` los captura y los loguea. DM-12 decía reintentar hasta 3 veces; no se implementó el reintento.
+- INT-03 y INT-05: `PedidosClient` + `PedidosClientMock` (pedidos 100 a 105 CONFIRMADOS, 106 PENDIENTE, el resto no existe) `NotificacionesClient` + `NotificacionesClientMock` (avisos de asignación, retiro, en camino y entrega) y `AnaliticaClient` + `AnaliticaClientMock` (INT-06, evento DELIVERY_COMPLETED con los tiempos); los mocks de avisos solo loguean. `PedidosClient.informarEstadoEntrega` cubre INT-04 (endpoint a acordar con Pedidos). Los avisos a Pedidos y Notificaciones no revierten la operación si fallan (DM-12): `EntregaService.avisarSinRevertir` los captura y los loguea. DM-12 decía reintentar hasta 3 veces; no se implementó el reintento.
 - Historial (RN-12): cuando el cambio lo hace el sistema o el módulo Pedidos se registra `EntregaService.ACTOR_SISTEMA = 0L`. El primer registro de cada entrega tiene `estadoAnterior = null`.
 - DM-09 simplificado: solo `@Version` en `Repartidor`, sin reintento automático. Si dos asignaciones toman al mismo repartidor, la segunda falla al guardar (`ObjectOptimisticLockingFailureException`) y el `GlobalExceptionHandler` responde 409 `CONCURRENT_UPDATE` (código no listado en la sección 17; CU-03 A6 pide 409 sin nombrarlo). Pedidos puede volver a pedir la asignación.
 - Código de confirmación: 4 dígitos con `SecureRandom`, generado en `EntregaService` y pasado a `Entrega.asignar`.
@@ -143,17 +151,22 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 ### Dominio
 
 - Las reglas viven en las entidades:
-  - `Repartidor`: `cambiarDisponibilidad`, `ocupar`, `liberar` y `vehiculoActivo`.
-  - `Entrega`: `asignar(repartidor, codigo)`, `registrarRetiro`, `completar(codigo)` y `validarTransicion` (privado).
-- La máquina de estados solo contempla las transiciones de los CU CORE. Las de CU-06, CU-07 y la cancelación se agregan cuando se implementen.
+  - `Repartidor`: `cambiarDisponibilidad`, `ocupar`, `liberar`, `vehiculoActivo`, `buscarVehiculo`, `activarVehiculo` (no durante una entrega), `quitarVehiculo` (no el activo) y `asignarZona`.
+  - `Entrega`: `asignar(repartidor, codigo)`, `aceptar`, `rechazar`, `registrarRetiro`, `informarEnCamino`, `completar(codigo)` y `validarTransicion` (privado).
+- Máquina de estados (RN-08): `PENDIENTE_ASIGNACION → ASIGNADA`; `ASIGNADA → RETIRADA` (CU-04) o `→ PENDIENTE_ASIGNACION` (rechazo, CU-06); `RETIRADA → EN_CAMINO` (CU-07) o `→ COMPLETADA`; `EN_CAMINO → COMPLETADA`. La cancelación no está: la inicia Pedidos y no es un CU del módulo.
+- CU-06: aceptar no cambia el estado (sigue ASIGNADA) pero queda en el historial. Rechazar libera al repartidor, borra el código y la fecha de asignación, y reasigna enseguida con el criterio de CU-03 y un código nuevo; el reemplazo se busca antes de liberar a quien rechaza, para que no le vuelva la misma entrega. Si no hay otro, queda PENDIENTE_ASIGNACION.
+- CU-07: solo avisa a Notificaciones; a Pedidos no, porque según la máquina de estados ese paso no cambia el pedido.
+- CU-08: `GET /deliveries/{id}` devuelve la entrega con el historial ordenado (`@OrderBy("id ASC")`), sin el código. No pide identificación (los roles no se controlan).
+- CU-09: un vehículo nuevo queda inactivo hasta activarlo; siempre hay uno solo activo (REL-01). La patente no se repite (REP-11, 409 `VEHICLE_PLATE_DUPLICATED`, también en CU-01).
+- CU-10: entidad `Zona` (nombre único). El repartidor tiene una zona opcional (`@ManyToOne`) y la entrega un `zonaId` opcional que manda Pedidos. Si la entrega trae zona, solo se eligen repartidores de esa zona (REP-10); si no, cualquiera. Si un administrador indica el `repartidorId`, no se filtra por zona.
 - El código de confirmación lo genera el service (SRV-03) y se pasa a `Entrega.asignar`.
-- El historial (RN-12) lo registra el service (SRV-06), no la entidad.
+- El historial (RN-12) lo registra el service (SRV-06), no la entidad. El actor es el repartidor en CU-04 a CU-07 y `ACTOR_SISTEMA` en las asignaciones (también la reasignación de CU-06).
 - `Entrega.historial` usa `cascade = ALL` sin `orphanRemoval`, porque el historial no se borra nunca. `Repartidor.vehiculos` usa `cascade = ALL` y `orphanRemoval = true`.
 - REP-04 depende de que H2 ordene los `NULL` primero. Si se migra a otra base de datos, revisarlo.
 
 ### Errores
 
-- Los errores que puede provocar un usuario se lanzan como `ReglaNegocioException` con un `CodigoError`, que toma los códigos de la sección 17 de la especificación.
+- Los errores que puede provocar un usuario se lanzan como `ReglaNegocioException` con un `CodigoError`, que toma los códigos de la sección 17 de la especificación. Con los CU de evolución se agregaron `VEHICLE_NOT_FOUND` y `ZONE_NOT_FOUND` (404), `VEHICLE_PLATE_DUPLICATED`, `VEHICLE_IS_ACTIVE` y `ZONE_NAME_DUPLICATED` (409).
 - Los errores de programación se lanzan como `IllegalStateException` o `IllegalArgumentException`.
 - `ErrorResponse` usa los campos de la especificación: timestamp, status, code, message, path y correlationId. Los nombres del ejemplo de clase eran distintos (`error`, `mensaje`).
 - Cada `CodigoError` tiene su `HttpStatus` (sección 17). `GlobalExceptionHandler` traduce `ReglaNegocioException`, errores de `@Valid`, JSON inválido, parámetros de tipo inválido y header faltante (400 `VALIDATION_ERROR`) y el conflicto de `@Version` (409 `CONCURRENT_UPDATE`). `correlationId` es un UUID nuevo por error, que también se escribe en el log. Los errores no previstos (500) y los propios de Spring (404 de URL inexistente, 405) los responde Spring con su formato.
@@ -163,7 +176,8 @@ Estas decisiones ya fueron acordadas. No revertirlas sin consultar.
 
 - Se usa `spring-boot-starter-test`. Los tests se mantienen durante el desarrollo.
 - `JAVA_HOME` no está definido en el sistema. Para usar el Maven Wrapper desde la terminal: `JAVA_HOME=C:\Users\NICO\.jdks\ms-25.0.4`.
-- `config.DemoDataLoader` (17/11/2026), al estilo del ejemplo de clase: `@Configuration` + `@Bean CommandLineRunner`, con `@Profile("demo")`. Carga los datos usando los services (pasan por las reglas): repartidores de los usuarios 1 (MOTO), 2 (BICICLETA) y 3 (AUTO), entrega del pedido 100 ASIGNADA al 1, del 101 RETIRADA por el 2, y el 3 DISPONIBLE. Imprime en el log los códigos de confirmación (solo para la demo; la API no los expone). Se arranca con `.\mvnw spring-boot:run "-Dspring-boot.run.profiles=demo"`. Probado en `DemoDataLoaderTest`, con una base H2 aparte (`jdbc:h2:mem:demo`).
+- 197 tests en verde (22/11/2026). Los CU de evolución tienen tests en `EntregaServiceTest`, `RepartidorServiceTest`, `ZonaServiceTest`, `EntregaTest`, `RepartidorTest`, `RepartidorRepositoryTest` y en los tests de controllers (incluido `ZonaControllerTest`).
+- `config.DemoDataLoader` (17/11/2026, ampliado el 22/11/2026), al estilo del ejemplo de clase: `@Configuration` + `@Bean CommandLineRunner`, con `@Profile("demo")`. Carga los datos usando los services (pasan por las reglas): repartidores de los usuarios 1 (MOTO), 2 (BICICLETA) y 3 (AUTO); entrega del pedido 100 ASIGNADA al 1 (CU-06 y CU-04), del 101 RETIRADA por el 2 (CU-07 y CU-05); el 3 DISPONIBLE, en la zona Centro y con una bicicleta inactiva (CU-09 y CU-10); zonas Centro y Palermo (Palermo sin repartidores). Imprime en el log los códigos de confirmación (solo para la demo; la API no los expone). Se arranca con `.\mvnw spring-boot:run "-Dspring-boot.run.profiles=demo"`. Probado en `DemoDataLoaderTest`, con una base H2 aparte (`jdbc:h2:mem:demo`).
 
 ## 11. Plan y estado actual
 
@@ -183,7 +197,14 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
   - Controllers: hechos. `RepartidorController` (API-01 POST /api/v1/couriers → 201, API-02 PATCH /api/v1/couriers/{id}/availability → 200) y `EntregaController` (API-03 POST /api/v1/deliveries/assign → 201 o 202, API-04 POST /{id}/pickup → 200 con body opcional, API-05 POST /{id}/complete → 200). Probados de punta a punta con MockMvc en `RepartidorControllerTest` y `EntregaControllerTest`.
   - springdoc: hecho. `springdoc-openapi-starter-webmvc-ui` 2.8.14 (la línea 2.8 es la de Spring Boot 3.x), `config.OpenApiConfig` con el título y la descripción, Swagger UI en `/swagger-ui.html` y contrato en `/v3/api-docs`. Los controllers llevan `@Tag`, `@Operation`, `@ApiResponse` (cada código HTTP con sus códigos de error y el esquema `ErrorResponse`) y `@Parameter`, sin mencionar las RN en las descripciones (03/11/2026). Probado en `OpenApiConfigTest`. El contrato exportado va en `doc/openapi.yaml` (pedido del profesor), junto con la primera entrega.
   - `DemoDataLoader`: hecho (perfil `demo`).
-- **Paso 3: pruebas integrales y revisión de trazabilidad** entre casos de uso, reglas de negocio y código.
+- **Paso 3: casos de uso de evolución (22/11/2026)**, con sus tests, anotaciones OpenAPI y `doc/openapi.yaml` actualizado.
+  - CU-06: `POST /api/v1/deliveries/{id}/accept` → 200 y `POST /{id}/reject` → 200 (body opcional con `motivo`). `EntregaService.aceptarAsignacion` y `rechazarAsignacion`.
+  - CU-07: `POST /api/v1/deliveries/{id}/on-the-way` → 200. `EntregaService.informarEnCamino`.
+  - CU-08: `GET /api/v1/deliveries/{id}` → 200 (`SeguimientoEntregaResponse` con `HistorialEstadoResponse`) y `GET /api/v1/couriers/{id}` → 200. `EntregaService.consultarSeguimiento` y `RepartidorService.buscarPorId`.
+  - CU-09: `GET` y `POST /api/v1/couriers/{id}/vehicles` (→ 200 / 201), `PATCH /{id}/vehicles/{vehiculoId}/activate` → 200 y `DELETE /{id}/vehicles/{vehiculoId}` → 204.
+  - CU-10: `POST /api/v1/zones` → 201, `GET /api/v1/zones` → 200 (`ZonaController`, `ZonaService`, `ZonaMapper`) y `PUT /api/v1/couriers/{id}/zone` → 200. `AsignarEntregaRequest` acepta `zonaId` opcional.
+  - Repositorios nuevos: REP-10 (disponible por zona), REP-11 (patente existente), REP-12 y REP-13 (`ZonaRepository`).
+- **Paso 4: revisión de trazabilidad** entre casos de uso, reglas de negocio y código, para la defensa.
 
 ### Decisiones pendientes
 
@@ -191,5 +212,6 @@ Se trabaja de a un paso por vez, explicando cada cambio, con commits separados p
 
 ### Deuda técnica conocida
 
-- La columna `patente` es `unique`. Si se registra una patente repetida, la base rechaza el insert con un error genérico (500), porque la especificación no define un código para ese caso. Revisarlo con CU-09.
 - `setEstado` y `setDisponibilidad` siguen siendo públicos en las entidades. Restringirlos al reescribir los services.
+- Aceptar dos veces la misma entrega deja dos registros ASIGNADA → ASIGNADA en el historial (queda constancia de cada aceptación).
+- La patente se compara distinguiendo mayúsculas (`AB123CD` y `ab123cd` se consideran distintas).
