@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Entity
 @Table(name = "repartidores")
@@ -47,6 +48,12 @@ public class Repartidor {
             orphanRemoval = true
     )
     private List<Vehiculo> vehiculos = new ArrayList<>();
+
+    // CU-10: zona en la que trabaja. Es opcional: sin zona puede recibir
+    // entregas que no indican zona
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "zona_id")
+    private Zona zona;
 
     public Repartidor() {
     }
@@ -171,7 +178,8 @@ public class Repartidor {
         this.ultimaAsignacion = LocalDateTime.now();
     }
 
-    // CU-05: el sistema lo libera al completar la entrega (RN-07)
+    // CU-05: el sistema lo libera al completar la entrega (RN-07).
+    // CU-06: tambien lo libera cuando rechaza la asignacion
     public void liberar() {
         // Si no esta OCUPADO es un error de programacion, no del usuario
         if (disponibilidad != Disponibilidad.OCUPADO) {
@@ -187,4 +195,44 @@ public class Repartidor {
                 .orElse(null);
     }
 
+    // CU-09: vehiculo del repartidor por id. Si no es suyo, para el es inexistente
+    public Vehiculo buscarVehiculo(Long vehiculoId) {
+        return vehiculos.stream()
+                .filter(v -> Objects.equals(v.getId(), vehiculoId))
+                .findFirst()
+                .orElseThrow(() -> new ReglaNegocioException(CodigoError.VEHICLE_NOT_FOUND,
+                        "El repartidor no tiene el vehículo " + vehiculoId));
+    }
+
+    // CU-09: cambia el vehiculo activo. Siempre queda uno solo activo (REL-01).
+    // No se puede cambiar mientras tiene una entrega en curso (RN-07)
+    public void activarVehiculo(Long vehiculoId) {
+        Vehiculo elegido = buscarVehiculo(vehiculoId);
+        if (disponibilidad == Disponibilidad.OCUPADO) {
+            throw new ReglaNegocioException(CodigoError.COURIER_HAS_ACTIVE_DELIVERY,
+                    "No se puede cambiar el vehículo durante una entrega");
+        }
+        vehiculos.forEach(v -> v.setActivo(v == elegido));
+    }
+
+    // CU-09: baja de un vehiculo. El activo no se puede quitar: primero hay que
+    // activar otro, asi el repartidor nunca se queda sin vehiculo (RN-04).
+    // orphanRemoval borra la fila al sacarlo de la lista
+    public void quitarVehiculo(Long vehiculoId) {
+        Vehiculo vehiculo = buscarVehiculo(vehiculoId);
+        if (vehiculo.isActivo()) {
+            throw new ReglaNegocioException(CodigoError.VEHICLE_IS_ACTIVE,
+                    "No se puede quitar el vehículo activo; primero active otro");
+        }
+        vehiculos.remove(vehiculo);
+    }
+
+    // CU-10: zona en la que trabaja el repartidor
+    public void asignarZona(Zona zona) {
+        this.zona = Objects.requireNonNull(zona, "La zona es obligatoria");
+    }
+
+    public Zona getZona() {
+        return zona;
+    }
 }

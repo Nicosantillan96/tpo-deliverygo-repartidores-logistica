@@ -10,8 +10,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -166,7 +169,126 @@ class RepartidorControllerTest {
                 .andExpect(jsonPath("$.code").value("COURIER_NOT_FOUND"));
     }
 
+    // ---------- CU-08 GET /api/v1/couriers/{id} ----------
+
+    @Test
+    void consultarUnRepartidorDevuelve200() throws Exception {
+        Long id = registrar(1L);
+
+        mockMvc.perform(get("/api/v1/couriers/{id}", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.vehiculo.tipo").value("BICICLETA"));
+    }
+
+    @Test
+    void consultarUnRepartidorInexistenteDevuelve404() throws Exception {
+        mockMvc.perform(get("/api/v1/couriers/{id}", 999))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COURIER_NOT_FOUND"));
+    }
+
+    // ---------- CU-09 vehiculos ----------
+
+    @Test
+    void agregarActivarYQuitarVehiculos() throws Exception {
+        Long id = registrar(1L);
+
+        // alta: 201 con los dos vehiculos; la moto queda inactiva
+        String json = mockMvc.perform(post("/api/v1/couriers/{id}/vehicles", id)
+                        .header("X-Usuario-Id", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"tipo\": \"MOTO\", \"patente\": \"AB123CD\" }"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andReturn().getResponse().getContentAsString();
+        Long motoId = idDelVehiculo(json, "MOTO");
+        Long biciId = idDelVehiculo(json, "BICICLETA");
+
+        // activar la moto
+        mockMvc.perform(patch("/api/v1/couriers/{id}/vehicles/{vid}/activate", id, motoId)
+                        .header("X-Usuario-Id", 1))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/v1/couriers/{id}", id))
+                .andExpect(jsonPath("$.vehiculo.tipo").value("MOTO"));
+
+        // quitar la bicicleta, que ya no es la activa
+        mockMvc.perform(delete("/api/v1/couriers/{id}/vehicles/{vid}", id, biciId)
+                        .header("X-Usuario-Id", 1))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(get("/api/v1/couriers/{id}/vehicles", id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].tipo").value("MOTO"));
+    }
+
+    @Test
+    void quitarElVehiculoActivoDevuelve409() throws Exception {
+        Long id = registrar(1L);
+        String json = mockMvc.perform(get("/api/v1/couriers/{id}/vehicles", id))
+                .andReturn().getResponse().getContentAsString();
+
+        mockMvc.perform(delete("/api/v1/couriers/{id}/vehicles/{vid}", id,
+                        idDelVehiculo(json, "BICICLETA"))
+                        .header("X-Usuario-Id", 1))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("VEHICLE_IS_ACTIVE"));
+    }
+
+    @Test
+    void agregarUnVehiculoAjenoDevuelve403() throws Exception {
+        Long id = registrar(1L);
+
+        mockMvc.perform(post("/api/v1/couriers/{id}/vehicles", id)
+                        .header("X-Usuario-Id", 2)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"tipo\": \"BICICLETA\" }"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    // ---------- CU-10 PUT /api/v1/couriers/{id}/zone ----------
+
+    @Test
+    void asignarZonaDevuelve200ConLaZona() throws Exception {
+        Long id = registrar(1L);
+        String zona = mockMvc.perform(post("/api/v1/zones")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"nombre\": \"Palermo\" }"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long zonaId = objectMapper.readTree(zona).get("id").asLong();
+
+        mockMvc.perform(put("/api/v1/couriers/{id}/zone", id)
+                        .header("X-Usuario-Id", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{ \"zonaId\": " + zonaId + " }"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.zonaId").value(zonaId));
+    }
+
+    @Test
+    void asignarZonaSinZonaIdDevuelve400() throws Exception {
+        Long id = registrar(1L);
+
+        mockMvc.perform(put("/api/v1/couriers/{id}/zone", id)
+                        .header("X-Usuario-Id", 1)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
     // ---------- helpers ----------
+
+    private Long idDelVehiculo(String json, String tipo) throws Exception {
+        for (var vehiculo : objectMapper.readTree(json)) {
+            if (tipo.equals(vehiculo.get("tipo").asText())) {
+                return vehiculo.get("id").asLong();
+            }
+        }
+        throw new AssertionError("No hay un vehículo " + tipo);
+    }
 
     // Registra un repartidor por la API y devuelve su id
     private Long registrar(Long usuarioId) throws Exception {

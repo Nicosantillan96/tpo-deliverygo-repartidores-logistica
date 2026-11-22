@@ -5,6 +5,7 @@ import ar.edu.uade.deliverygo.logistica.model.EstadoRepartidor;
 import ar.edu.uade.deliverygo.logistica.model.Repartidor;
 import ar.edu.uade.deliverygo.logistica.model.TipoVehiculo;
 import ar.edu.uade.deliverygo.logistica.model.Vehiculo;
+import ar.edu.uade.deliverygo.logistica.model.Zona;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -116,6 +117,39 @@ class RepartidorRepositoryTest {
                 .findFirstByEstadoAndDisponibilidadOrderByUltimaAsignacionAsc(
                         EstadoRepartidor.ACTIVO, Disponibilidad.DISPONIBLE))
                 .isEmpty();
+    }
+
+    // REP-10 (CU-10): solo los repartidores de la zona pedida
+    @Test
+    void findFirstDisponibleDeUnaZona() {
+        Zona palermo = entityManager.persist(new Zona("Palermo"));
+        Zona belgrano = entityManager.persist(new Zona("Belgrano"));
+        LocalDateTime hoy = LocalDateTime.of(2026, 10, 29, 0, 0);
+        Repartidor deBelgrano = repartidor(1L, "1", EstadoRepartidor.ACTIVO, Disponibilidad.DISPONIBLE, null);
+        deBelgrano.asignarZona(belgrano);
+        repartidorRepository.save(deBelgrano);
+        Repartidor dePalermo = repartidor(2L, "2", EstadoRepartidor.ACTIVO, Disponibilidad.DISPONIBLE, hoy);
+        dePalermo.asignarZona(palermo);
+        repartidorRepository.save(dePalermo);
+        repartidorRepository.save(repartidor(3L, "3", EstadoRepartidor.ACTIVO, Disponibilidad.DISPONIBLE, null));
+
+        Repartidor elegido = repartidorRepository
+                .findFirstByEstadoAndDisponibilidadAndZonaIdOrderByUltimaAsignacionAsc(
+                        EstadoRepartidor.ACTIVO, Disponibilidad.DISPONIBLE, palermo.getId())
+                .orElseThrow();
+
+        assertThat(elegido.getUsuarioId()).isEqualTo(2L);
+    }
+
+    // REP-11: busca la patente en los vehiculos de todos los repartidores
+    @Test
+    void existsByVehiculosPatente() {
+        Repartidor repartidor = nuevoRepartidor();
+        repartidor.agregarVehiculo(nuevoVehiculo(TipoVehiculo.MOTO, "AB123CD"));
+        repartidorRepository.save(repartidor);
+
+        assertThat(repartidorRepository.existsByVehiculosPatente("AB123CD")).isTrue();
+        assertThat(repartidorRepository.existsByVehiculosPatente("ZZ999ZZ")).isFalse();
     }
 
     private Repartidor repartidor(Long usuarioId, String dni, EstadoRepartidor estado,

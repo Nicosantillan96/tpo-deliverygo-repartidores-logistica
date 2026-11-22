@@ -13,6 +13,9 @@ public interface NotificacionesClient {
     // CU-04: avisa al cliente que el repartidor retiro el pedido
     void avisarRetiro(Long entregaId, Long clienteId);
 
+    // CU-07: avisa al cliente que el pedido va en camino
+    void avisarEnCamino(Long entregaId, Long clienteId);
+
     // CU-05: avisa al cliente que la entrega se completo
     void avisarEntrega(Long entregaId, Long clienteId);
 }

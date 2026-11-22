@@ -21,4 +21,16 @@ public interface RepartidorRepository extends JpaRepository<Repartidor, Long> {
             EstadoRepartidor estado,
             Disponibilidad disponibilidad
     );
+
+    // REP-10 (CU-10): igual que REP-04 pero solo entre los repartidores de una zona.
+    // ZonaId navega la relacion: repartidor.zona.id
+    Optional<Repartidor> findFirstByEstadoAndDisponibilidadAndZonaIdOrderByUltimaAsignacionAsc(
+            EstadoRepartidor estado,
+            Disponibilidad disponibilidad,
+            Long zonaId
+    );
+
+    // REP-11 (CU-01 y CU-09): la patente ya esta en algun vehiculo.
+    // VehiculosPatente navega la lista: repartidor.vehiculos.patente
+    boolean existsByVehiculosPatente(String patente);
 }

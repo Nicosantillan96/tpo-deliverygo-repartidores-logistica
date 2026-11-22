@@ -149,6 +149,113 @@ class EntregaTest {
                 .extracting("codigo").isEqualTo(CodigoError.DELIVERY_INVALID_STATE);
     }
 
+    // CU-06
+
+    @Test
+    void aceptarNoCambiaElEstado() {
+        Entrega entrega = entregaPendiente();
+        entrega.asignar(repartidorDisponible(), CODIGO);
+
+        entrega.aceptar();
+
+        assertThat(entrega.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
+    }
+
+    @Test
+    void noSePuedeAceptarUnaEntregaRetirada() {
+        Entrega entrega = entregaPendiente();
+        entrega.asignar(repartidorDisponible(), CODIGO);
+        entrega.registrarRetiro();
+
+        assertThatThrownBy(entrega::aceptar)
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.DELIVERY_INVALID_STATE);
+    }
+
+    @Test
+    void rechazarVuelveAPendienteYLiberaAlRepartidor() {
+        Repartidor repartidor = repartidorDisponible();
+        Entrega entrega = entregaPendiente();
+        entrega.asignar(repartidor, CODIGO);
+
+        entrega.rechazar();
+
+        assertThat(entrega.getEstado()).isEqualTo(EstadoEntrega.PENDIENTE_ASIGNACION);
+        assertThat(entrega.getRepartidor()).isNull();
+        assertThat(entrega.getCodigoConfirmacion()).isNull();
+        assertThat(entrega.getFechaAsignacion()).isNull();
+        assertThat(repartidor.getDisponibilidad()).isEqualTo(Disponibilidad.DISPONIBLE);
+    }
+
+    // Una entrega rechazada se puede volver a asignar a otro (con codigo nuevo)
+    @Test
+    void unaEntregaRechazadaSePuedeReasignar() {
+        Entrega entrega = entregaPendiente();
+        entrega.asignar(repartidorDisponible(), CODIGO);
+        entrega.rechazar();
+        Repartidor otro = repartidorDisponible();
+
+        entrega.asignar(otro, "1111");
+
+        assertThat(entrega.getRepartidor()).isSameAs(otro);
+        assertThat(entrega.getCodigoConfirmacion()).isEqualTo("1111");
+    }
+
+    @Test
+    void noSePuedeRechazarUnaEntregaRetirada() {
+        Repartidor repartidor = repartidorDisponible();
+        Entrega entrega = entregaPendiente();
+        entrega.asignar(repartidor, CODIGO);
+        entrega.registrarRetiro();
+
+        assertThatThrownBy(entrega::rechazar)
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.DELIVERY_INVALID_STATE);
+        assertThat(entrega.getEstado()).isEqualTo(EstadoEntrega.RETIRADA);
+        assertThat(repartidor.getDisponibilidad()).isEqualTo(Disponibilidad.OCUPADO);
+    }
+
+    // CU-07
+
+    @Test
+    void informarEnCaminoYDespuesCompletar() {
+        Repartidor repartidor = repartidorDisponible();
+        Entrega entrega = entregaPendiente();
+        entrega.asignar(repartidor, CODIGO);
+        entrega.registrarRetiro();
+
+        entrega.informarEnCamino();
+        assertThat(entrega.getEstado()).isEqualTo(EstadoEntrega.EN_CAMINO);
+
+        // CU-05 desde EN_CAMINO
+        entrega.completar(CODIGO);
+        assertThat(entrega.getEstado()).isEqualTo(EstadoEntrega.COMPLETADA);
+        assertThat(repartidor.getDisponibilidad()).isEqualTo(Disponibilidad.DISPONIBLE);
+    }
+
+    @Test
+    void noSePuedeInformarEnCaminoSinRetirar() {
+        Entrega entrega = entregaPendiente();
+        entrega.asignar(repartidorDisponible(), CODIGO);
+
+        assertThatThrownBy(entrega::informarEnCamino)
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.DELIVERY_INVALID_STATE);
+        assertThat(entrega.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
+    }
+
+    @Test
+    void noSePuedeInformarEnCaminoDosVeces() {
+        Entrega entrega = entregaPendiente();
+        entrega.asignar(repartidorDisponible(), CODIGO);
+        entrega.registrarRetiro();
+        entrega.informarEnCamino();
+
+        assertThatThrownBy(entrega::informarEnCamino)
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.DELIVERY_INVALID_STATE);
+    }
+
     private Entrega entregaPendiente() {
         Entrega entrega = new Entrega();
         entrega.setEstado(EstadoEntrega.PENDIENTE_ASIGNACION);

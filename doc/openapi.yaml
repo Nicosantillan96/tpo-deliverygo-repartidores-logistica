@@ -1,20 +1,193 @@
 openapi: 3.1.0
 info:
   title: DeliveryGo - Repartidores y Logística
-  description: "Módulo de repartidores y ciclo de vida de las entregas (CU-01 a CU-05).\
-    \ Las operaciones del repartidor (disponibilidad, retiro y confirmación) requieren\
-    \ el header X-Usuario-Id, que simula el usuario del JWT (RN-10). Usuarios de prueba\
-    \ del mock: 1 a 5. Pedidos confirmados del mock: 100 a 105."
+  description: "Módulo de repartidores y ciclo de vida de las entregas (CU-01 a CU-10).\
+    \ Las operaciones del repartidor (disponibilidad, aceptar o rechazar, retiro,\
+    \ en camino, confirmación, vehículos y zona) requieren el header X-Usuario-Id,\
+    \ que simula el usuario del JWT (RN-10). Usuarios de prueba del mock: 1 a 5. Pedidos\
+    \ confirmados del mock: 100 a 105."
   version: "1.0"
 servers:
 - url: http://localhost:8080
   description: Generated server url
 tags:
 - name: Repartidores
-  description: Alta de repartidores y cambio de disponibilidad
+  description: "Alta, disponibilidad, consulta, vehículos y zona de los repartidores"
 - name: Entregas
-  description: "Asignación, retiro y confirmación de entregas"
+  description: "Asignación, aceptación o rechazo, retiro, en camino, confirmación\
+    \ y seguimiento de entregas"
+- name: Zonas
+  description: Zonas de operación de los repartidores
 paths:
+  /api/v1/couriers/{id}/zone:
+    put:
+      tags:
+      - Repartidores
+      summary: CU-10 Asignar zona al repartidor
+      description: El repartidor titular elige la zona en la que trabaja. Las entregas
+        con zona solo se asignan a repartidores de esa zona.
+      operationId: asignarZona
+      parameters:
+      - name: id
+        in: path
+        description: Id del repartidor
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: X-Usuario-Id
+        in: header
+        description: Id del usuario que hace el pedido (simula el usuario del JWT)
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AsignarZonaRequest"
+        required: true
+      responses:
+        "200":
+          description: Zona asignada
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RepartidorResponse"
+        "400":
+          description: "VALIDATION_ERROR: falta el zonaId o el header X-Usuario-Id"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "FORBIDDEN: el usuario no es el titular del repartidor"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "COURIER_NOT_FOUND: el repartidor no existe. ZONE_NOT_FOUND:\
+            \ la zona no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/zones:
+    get:
+      tags:
+      - Zonas
+      summary: CU-10 Listar zonas
+      description: Devuelve las zonas ordenadas por nombre.
+      operationId: listar
+      responses:
+        "200":
+          description: Zonas
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ZonaResponse"
+    post:
+      tags:
+      - Zonas
+      summary: CU-10 Crear zona
+      description: Da de alta una zona de operación.
+      operationId: crear
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrearZonaRequest"
+        required: true
+      responses:
+        "201":
+          description: Zona creada
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ZonaResponse"
+        "400":
+          description: "VALIDATION_ERROR: falta el nombre o es demasiado largo"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "ZONE_NAME_DUPLICATED: ya existe una zona con ese nombre"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/deliveries/{id}/reject:
+    post:
+      tags:
+      - Entregas
+      summary: CU-06 Rechazar asignación
+      description: "El repartidor asignado rechaza la entrega: vuelve a PENDIENTE_ASIGNACION,\
+        \ él queda DISPONIBLE y se reasigna enseguida a otro repartidor con un có\
+        digo nuevo. Si no hay otro disponible, la respuesta muestra la entrega PENDIENTE_ASIGNACION."
+      operationId: rechazarAsignacion
+      parameters:
+      - name: id
+        in: path
+        description: Id de la entrega
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: X-Usuario-Id
+        in: header
+        description: Id del usuario que hace el pedido (simula el usuario del JWT)
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RechazarAsignacionRequest"
+      responses:
+        "200":
+          description: "Asignación rechazada: entrega reasignada (ASIGNADA) o pendiente\
+            \ (PENDIENTE_ASIGNACION)"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EntregaResponse"
+        "400":
+          description: "VALIDATION_ERROR: motivo demasiado largo o falta el header\
+            \ X-Usuario-Id"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "COURIER_NOT_ASSIGNED: el usuario no es el repartidor asignado"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "DELIVERY_NOT_FOUND: la entrega no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "DELIVERY_INVALID_STATE: la entrega no está ASIGNADA. CONCURRENT_UPDATE:\
+            \ otra operación tomó al mismo repartidor; se puede reintentar"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/deliveries/{id}/pickup:
     post:
       tags:
@@ -73,6 +246,62 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: "DELIVERY_INVALID_STATE: la entrega no está ASIGNADA"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/deliveries/{id}/on-the-way:
+    post:
+      tags:
+      - Entregas
+      summary: CU-07 Informar pedido en camino
+      description: "El repartidor asignado informa que va hacia el cliente: RETIRADA\
+        \ pasa a EN_CAMINO."
+      operationId: informarEnCamino
+      parameters:
+      - name: id
+        in: path
+        description: Id de la entrega
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: X-Usuario-Id
+        in: header
+        description: Id del usuario que hace el pedido (simula el usuario del JWT)
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Entrega EN_CAMINO
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EntregaResponse"
+        "400":
+          description: "VALIDATION_ERROR: falta el header X-Usuario-Id"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "COURIER_NOT_ASSIGNED: el usuario no es el repartidor asignado"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "DELIVERY_NOT_FOUND: la entrega no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "DELIVERY_INVALID_STATE: la entrega no está RETIRADA"
           content:
             '*/*':
               schema:
@@ -148,6 +377,62 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/deliveries/{id}/accept:
+    post:
+      tags:
+      - Entregas
+      summary: CU-06 Aceptar asignación
+      description: El repartidor asignado acepta la entrega. Sigue ASIGNADA y la aceptación
+        queda en el historial.
+      operationId: aceptarAsignacion
+      parameters:
+      - name: id
+        in: path
+        description: Id de la entrega
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: X-Usuario-Id
+        in: header
+        description: Id del usuario que hace el pedido (simula el usuario del JWT)
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Asignación aceptada
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/EntregaResponse"
+        "400":
+          description: "VALIDATION_ERROR: falta el header X-Usuario-Id"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "COURIER_NOT_ASSIGNED: el usuario no es el repartidor asignado"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "DELIVERY_NOT_FOUND: la entrega no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "DELIVERY_INVALID_STATE: la entrega no está ASIGNADA"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/deliveries/assign:
     post:
       tags:
@@ -155,8 +440,9 @@ paths:
       summary: CU-03 Asignar repartidor a una entrega
       description: "Crea la entrega de un pedido confirmado, o reutiliza la que quedó\
         \ pendiente, y le asigna el repartidor disponible que hace más tiempo no recibe\
-        \ una entrega. Con repartidorId se asigna ese repartidor en particular. El\
-        \ código de confirmación se envía al cliente y nunca sale en la respuesta."
+        \ una entrega. Con repartidorId se asigna ese repartidor en particular. Con\
+        \ zonaId solo se eligen repartidores de esa zona. El código de confirmació\
+        n se envía al cliente y nunca sale en la respuesta."
       operationId: asignar
       requestBody:
         content:
@@ -186,7 +472,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: "ORDER_NOT_FOUND: el pedido no existe. COURIER_NOT_FOUND: el\
-            \ repartidor indicado no existe"
+            \ repartidor indicado no existe. ZONE_NOT_FOUND: la zona indicada no existe"
           content:
             '*/*':
               schema:
@@ -236,7 +522,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: "COURIER_DNI_DUPLICATED: el DNI ya está registrado. COURIER_ALREADY_REGISTERED:\
-            \ el usuario ya es repartidor"
+            \ el usuario ya es repartidor. VEHICLE_PLATE_DUPLICATED: la patente ya\
+            \ está registrada"
           content:
             '*/*':
               schema:
@@ -244,6 +531,169 @@ paths:
         "422":
           description: "USER_NOT_ELIGIBLE: el usuario no existe, está inactivo o no\
             \ tiene rol REPARTIDOR"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/couriers/{id}/vehicles:
+    get:
+      tags:
+      - Repartidores
+      summary: CU-09 Listar vehículos del repartidor
+      description: "Devuelve todos los vehículos del repartidor, indicando cuál es\
+        \ el activo."
+      operationId: listarVehiculos
+      parameters:
+      - name: id
+        in: path
+        description: Id del repartidor
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Vehículos del repartidor
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehiculoResponse"
+        "404":
+          description: "COURIER_NOT_FOUND: el repartidor no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+      - Repartidores
+      summary: CU-09 Agregar vehículo
+      description: El repartidor titular agrega un vehículo. Queda inactivo hasta
+        que lo active. Devuelve todos sus vehículos.
+      operationId: agregarVehiculo
+      parameters:
+      - name: id
+        in: path
+        description: Id del repartidor
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: X-Usuario-Id
+        in: header
+        description: Id del usuario que hace el pedido (simula el usuario del JWT)
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgregarVehiculoRequest"
+        required: true
+      responses:
+        "201":
+          description: Vehículo agregado
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehiculoResponse"
+        "400":
+          description: "VALIDATION_ERROR: faltan datos o falta el header X-Usuario-Id.\
+            \ VEHICLE_PLATE_REQUIRED: MOTO o AUTO sin patente"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "FORBIDDEN: el usuario no es el titular del repartidor"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "COURIER_NOT_FOUND: el repartidor no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "VEHICLE_PLATE_DUPLICATED: la patente ya está registrada"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/couriers/{id}/vehicles/{vehiculoId}/activate:
+    patch:
+      tags:
+      - Repartidores
+      summary: CU-09 Activar vehículo
+      description: El repartidor titular elige con qué vehículo trabaja. Los demás
+        quedan inactivos. No se puede cambiar durante una entrega.
+      operationId: activarVehiculo
+      parameters:
+      - name: id
+        in: path
+        description: Id del repartidor
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: vehiculoId
+        in: path
+        description: Id del vehículo
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 2
+      - name: X-Usuario-Id
+        in: header
+        description: Id del usuario que hace el pedido (simula el usuario del JWT)
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Vehículo activado
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VehiculoResponse"
+        "400":
+          description: "VALIDATION_ERROR: falta el header X-Usuario-Id"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "FORBIDDEN: el usuario no es el titular del repartidor"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "COURIER_NOT_FOUND: el repartidor no existe. VEHICLE_NOT_FOUND:\
+            \ el vehículo no es del repartidor"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "COURIER_HAS_ACTIVE_DELIVERY: tiene una entrega en curso"
           content:
             '*/*':
               schema:
@@ -317,15 +767,136 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/deliveries/{id}:
+    get:
+      tags:
+      - Entregas
+      summary: CU-08 Consultar seguimiento de entrega
+      description: "Devuelve la entrega con su historial de estados, del más antiguo\
+        \ al más reciente. No incluye el código de confirmación."
+      operationId: consultarSeguimiento
+      parameters:
+      - name: id
+        in: path
+        description: Id de la entrega
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Entrega con su historial
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/SeguimientoEntregaResponse"
+        "404":
+          description: "DELIVERY_NOT_FOUND: la entrega no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/couriers/{id}:
+    get:
+      tags:
+      - Repartidores
+      summary: CU-08 Consultar repartidor
+      description: Devuelve los datos del repartidor con su vehículo activo y su zona.
+      operationId: buscarPorId
+      parameters:
+      - name: id
+        in: path
+        description: Id del repartidor
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "200":
+          description: Datos del repartidor
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RepartidorResponse"
+        "404":
+          description: "COURIER_NOT_FOUND: el repartidor no existe"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/couriers/{id}/vehicles/{vehiculoId}:
+    delete:
+      tags:
+      - Repartidores
+      summary: CU-09 Quitar vehículo
+      description: El repartidor titular da de baja un vehículo. El activo no se puede
+        quitar.
+      operationId: quitarVehiculo
+      parameters:
+      - name: id
+        in: path
+        description: Id del repartidor
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      - name: vehiculoId
+        in: path
+        description: Id del vehículo
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 2
+      - name: X-Usuario-Id
+        in: header
+        description: Id del usuario que hace el pedido (simula el usuario del JWT)
+        required: true
+        schema:
+          type: integer
+          format: int64
+        example: 1
+      responses:
+        "204":
+          description: Vehículo quitado
+        "400":
+          description: "VALIDATION_ERROR: falta el header X-Usuario-Id"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "FORBIDDEN: el usuario no es el titular del repartidor"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: "COURIER_NOT_FOUND: el repartidor no existe. VEHICLE_NOT_FOUND:\
+            \ el vehículo no es del repartidor"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: "VEHICLE_IS_ACTIVE: es el vehículo activo"
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
-    RegistrarRetiroRequest:
+    AsignarZonaRequest:
       type: object
       properties:
-        observacion:
-          type: string
-          maxLength: 255
-          minLength: 0
+        zonaId:
+          type: integer
+          format: int64
+      required:
+      - zonaId
     ErrorResponse:
       type: object
       properties:
@@ -343,6 +914,81 @@ components:
           type: string
         correlationId:
           type: string
+    RepartidorResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        usuarioId:
+          type: integer
+          format: int64
+        nombre:
+          type: string
+        apellido:
+          type: string
+        dni:
+          type: string
+        telefono:
+          type: string
+        estado:
+          type: string
+          enum:
+          - ACTIVO
+          - INACTIVO
+        disponibilidad:
+          type: string
+          enum:
+          - DISPONIBLE
+          - NO_DISPONIBLE
+          - OCUPADO
+        vehiculo:
+          $ref: "#/components/schemas/VehiculoDTO"
+        fechaAlta:
+          type: string
+          format: date-time
+        zonaId:
+          type: integer
+          format: int64
+    VehiculoDTO:
+      type: object
+      properties:
+        tipo:
+          type: string
+          enum:
+          - BICICLETA
+          - MOTO
+          - AUTO
+        patente:
+          type: string
+        descripcion:
+          type: string
+      required:
+      - tipo
+    CrearZonaRequest:
+      type: object
+      properties:
+        nombre:
+          type: string
+          maxLength: 100
+          minLength: 0
+      required:
+      - nombre
+    ZonaResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        nombre:
+          type: string
+    RechazarAsignacionRequest:
+      type: object
+      properties:
+        motivo:
+          type: string
+          maxLength: 255
+          minLength: 0
     EntregaResponse:
       type: object
       properties:
@@ -376,6 +1022,13 @@ components:
         fechaEntrega:
           type: string
           format: date-time
+    RegistrarRetiroRequest:
+      type: object
+      properties:
+        observacion:
+          type: string
+          maxLength: 255
+          minLength: 0
     ConfirmarEntregaRequest:
       type: object
       properties:
@@ -407,6 +1060,9 @@ components:
           type: string
           minLength: 1
         repartidorId:
+          type: integer
+          format: int64
+        zonaId:
           type: integer
           format: int64
       required:
@@ -443,7 +1099,7 @@ components:
       - telefono
       - usuarioId
       - vehiculo
-    VehiculoDTO:
+    AgregarVehiculoRequest:
       type: object
       properties:
         tipo:
@@ -454,43 +1110,32 @@ components:
           - AUTO
         patente:
           type: string
+          maxLength: 20
+          minLength: 0
         descripcion:
           type: string
+          maxLength: 255
+          minLength: 0
       required:
       - tipo
-    RepartidorResponse:
+    VehiculoResponse:
       type: object
       properties:
         id:
           type: integer
           format: int64
-        usuarioId:
-          type: integer
-          format: int64
-        nombre:
-          type: string
-        apellido:
-          type: string
-        dni:
-          type: string
-        telefono:
-          type: string
-        estado:
+        tipo:
           type: string
           enum:
-          - ACTIVO
-          - INACTIVO
-        disponibilidad:
+          - BICICLETA
+          - MOTO
+          - AUTO
+        patente:
           type: string
-          enum:
-          - DISPONIBLE
-          - NO_DISPONIBLE
-          - OCUPADO
-        vehiculo:
-          $ref: "#/components/schemas/VehiculoDTO"
-        fechaAlta:
+        descripcion:
           type: string
-          format: date-time
+        activo:
+          type: boolean
     CambiarDisponibilidadRequest:
       type: object
       properties:
@@ -502,3 +1147,72 @@ components:
           - OCUPADO
       required:
       - disponibilidad
+    HistorialEstadoResponse:
+      type: object
+      properties:
+        estadoAnterior:
+          type: string
+          enum:
+          - PENDIENTE_ASIGNACION
+          - ASIGNADA
+          - RETIRADA
+          - EN_CAMINO
+          - COMPLETADA
+          - CANCELADA
+        estadoNuevo:
+          type: string
+          enum:
+          - PENDIENTE_ASIGNACION
+          - ASIGNADA
+          - RETIRADA
+          - EN_CAMINO
+          - COMPLETADA
+          - CANCELADA
+        fechaHora:
+          type: string
+          format: date-time
+        usuarioActorId:
+          type: integer
+          format: int64
+        observacion:
+          type: string
+    SeguimientoEntregaResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        pedidoId:
+          type: integer
+          format: int64
+        repartidorId:
+          type: integer
+          format: int64
+        zonaId:
+          type: integer
+          format: int64
+        estado:
+          type: string
+          enum:
+          - PENDIENTE_ASIGNACION
+          - ASIGNADA
+          - RETIRADA
+          - EN_CAMINO
+          - COMPLETADA
+          - CANCELADA
+        fechaCreacion:
+          type: string
+          format: date-time
+        fechaAsignacion:
+          type: string
+          format: date-time
+        fechaRetiro:
+          type: string
+          format: date-time
+        fechaEntrega:
+          type: string
+          format: date-time
+        historial:
+          type: array
+          items:
+            $ref: "#/components/schemas/HistorialEstadoResponse"

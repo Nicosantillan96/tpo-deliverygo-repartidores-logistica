@@ -8,7 +8,10 @@ import ar.edu.uade.deliverygo.logistica.client.PedidosClientMock;
 import ar.edu.uade.deliverygo.logistica.dto.AsignarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.ConfirmarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
+import ar.edu.uade.deliverygo.logistica.dto.HistorialEstadoResponse;
+import ar.edu.uade.deliverygo.logistica.dto.RechazarAsignacionRequest;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
+import ar.edu.uade.deliverygo.logistica.dto.SeguimientoEntregaResponse;
 import ar.edu.uade.deliverygo.logistica.excepcion.CodigoError;
 import ar.edu.uade.deliverygo.logistica.excepcion.ReglaNegocioException;
 import ar.edu.uade.deliverygo.logistica.mapper.EntregaMapper;
@@ -18,8 +21,10 @@ import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
 import ar.edu.uade.deliverygo.logistica.model.EstadoRepartidor;
 import ar.edu.uade.deliverygo.logistica.model.HistorialEstadoEntrega;
 import ar.edu.uade.deliverygo.logistica.model.Repartidor;
+import ar.edu.uade.deliverygo.logistica.model.Zona;
 import ar.edu.uade.deliverygo.logistica.repository.EntregaRepository;
 import ar.edu.uade.deliverygo.logistica.repository.RepartidorRepository;
+import ar.edu.uade.deliverygo.logistica.repository.ZonaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -46,6 +51,9 @@ class EntregaServiceTest {
 
     @Autowired
     private RepartidorRepository repartidorRepository;
+
+    @Autowired
+    private ZonaRepository zonaRepository;
 
     // ---------- asignacion automatica ----------
 
@@ -375,7 +383,227 @@ class EntregaServiceTest {
         assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.COMPLETADA);
     }
 
+    // ---------- CU-06: aceptar / rechazar asignacion ----------
+
+    @Test
+    void elRepartidorAsignadoAceptaYQuedaEnElHistorial() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        EntregaResponse resultado = entregaService.aceptarAsignacion(entregaId, 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
+        HistorialEstadoEntrega ultimo = ultimoHistorial(entregaId);
+        assertThat(ultimo.getEstadoAnterior()).isEqualTo(EstadoEntrega.ASIGNADA);
+        assertThat(ultimo.getEstadoNuevo()).isEqualTo(EstadoEntrega.ASIGNADA);
+        assertThat(ultimo.getUsuarioActorId()).isEqualTo(1L);
+    }
+
+    // RN-10
+    @Test
+    void otroUsuarioNoPuedeAceptar() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        assertThatThrownBy(() -> entregaService.aceptarAsignacion(entregaId, 2L))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.COURIER_NOT_ASSIGNED);
+    }
+
+    // Al rechazar, se reasigna al otro repartidor disponible con un codigo nuevo
+    @Test
+    void alRechazarSeReasignaAOtroRepartidor() {
+        Repartidor quienRechaza = repartidorDisponible(1L, "1", null);
+        Long entregaId = entregaService.asignarRepartidor(pedido(100L)).getId();
+        Repartidor otro = repartidorDisponible(2L, "2", null);
+
+        EntregaResponse resultado = entregaService.rechazarAsignacion(
+                entregaId, new RechazarAsignacionRequest("Se me pinchó la rueda"), 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.ASIGNADA);
+        assertThat(resultado.getRepartidorId()).isEqualTo(otro.getId());
+        assertThat(otro.getDisponibilidad()).isEqualTo(Disponibilidad.OCUPADO);
+        // quien rechazo queda libre
+        assertThat(quienRechaza.getDisponibilidad()).isEqualTo(Disponibilidad.DISPONIBLE);
+        // RN-12: rechazo (con motivo, actor el repartidor) y reasignacion (actor sistema)
+        List<HistorialEstadoEntrega> historial = historialDe(entregaId);
+        assertThat(historial).hasSize(4);
+        assertThat(historial.get(2).getEstadoAnterior()).isEqualTo(EstadoEntrega.ASIGNADA);
+        assertThat(historial.get(2).getEstadoNuevo()).isEqualTo(EstadoEntrega.PENDIENTE_ASIGNACION);
+        assertThat(historial.get(2).getUsuarioActorId()).isEqualTo(1L);
+        assertThat(historial.get(2).getObservacion()).isEqualTo("Se me pinchó la rueda");
+        assertThat(historial.get(3).getEstadoNuevo()).isEqualTo(EstadoEntrega.ASIGNADA);
+        assertThat(historial.get(3).getUsuarioActorId()).isEqualTo(EntregaService.ACTOR_SISTEMA);
+        assertThat(codigoDe(entregaId)).matches("\\d{4}");
+    }
+
+    // Si no hay otro repartidor, la entrega queda pendiente; no vuelve a quien la rechazo
+    @Test
+    void alRechazarSinOtroRepartidorLaEntregaQuedaPendiente() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        EntregaResponse resultado = entregaService.rechazarAsignacion(
+                entregaId, new RechazarAsignacionRequest(), 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.PENDIENTE_ASIGNACION);
+        assertThat(resultado.getRepartidorId()).isNull();
+        assertThat(codigoDe(entregaId)).isNull();
+    }
+
+    // RN-08: despues del retiro ya no se puede rechazar
+    @Test
+    void noSePuedeRechazarUnaEntregaRetirada() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        assertThatThrownBy(() -> entregaService.rechazarAsignacion(
+                entregaId, new RechazarAsignacionRequest(), 1L))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.DELIVERY_INVALID_STATE);
+    }
+
+    // RN-10
+    @Test
+    void otroUsuarioNoPuedeRechazar() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        assertThatThrownBy(() -> entregaService.rechazarAsignacion(
+                entregaId, new RechazarAsignacionRequest(), 2L))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.COURIER_NOT_ASSIGNED);
+    }
+
+    // ---------- CU-07: en camino ----------
+
+    @Test
+    void elRepartidorInformaQueVaEnCaminoYDespuesCompleta() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        EntregaResponse enCamino = entregaService.informarEnCamino(entregaId, 1L);
+
+        assertThat(enCamino.getEstado()).isEqualTo(EstadoEntrega.EN_CAMINO);
+        assertThat(ultimoHistorial(entregaId).getEstadoAnterior()).isEqualTo(EstadoEntrega.RETIRADA);
+        assertThat(ultimoHistorial(entregaId).getUsuarioActorId()).isEqualTo(1L);
+
+        EntregaResponse completada = entregaService.confirmarEntrega(
+                entregaId, confirmacion(codigoDe(entregaId)), 1L);
+        assertThat(completada.getEstado()).isEqualTo(EstadoEntrega.COMPLETADA);
+    }
+
+    @Test
+    void noSePuedeInformarEnCaminoSinRetirar() {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        assertThatThrownBy(() -> entregaService.informarEnCamino(entregaId, 1L))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.DELIVERY_INVALID_STATE);
+    }
+
+    @Test
+    void otroUsuarioNoPuedeInformarEnCamino() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        assertThatThrownBy(() -> entregaService.informarEnCamino(entregaId, 2L))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.COURIER_NOT_ASSIGNED);
+    }
+
+    // DM-12
+    @Test
+    void siFallaElAvisoEnCaminoNoSeRevierte() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        EntregaResponse resultado = serviceConAvisosQueFallan().informarEnCamino(entregaId, 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.EN_CAMINO);
+    }
+
+    // ---------- CU-08: seguimiento ----------
+
+    @Test
+    void elSeguimientoMuestraElHistorialEnOrden() {
+        Long entregaId = entregaRetiradaPorElUsuario1();
+
+        SeguimientoEntregaResponse seguimiento = entregaService.consultarSeguimiento(entregaId);
+
+        assertThat(seguimiento.getEstado()).isEqualTo(EstadoEntrega.RETIRADA);
+        assertThat(seguimiento.getHistorial())
+                .extracting(HistorialEstadoResponse::getEstadoNuevo)
+                .containsExactly(EstadoEntrega.PENDIENTE_ASIGNACION, EstadoEntrega.ASIGNADA,
+                        EstadoEntrega.RETIRADA);
+        assertThat(seguimiento.getHistorial().get(0).getEstadoAnterior()).isNull();
+    }
+
+    @Test
+    void elSeguimientoDeUnaEntregaInexistenteDa404() {
+        assertThatThrownBy(() -> entregaService.consultarSeguimiento(999L))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.DELIVERY_NOT_FOUND);
+    }
+
+    // ---------- CU-10: asignacion por zona ----------
+
+    @Test
+    void conZonaSoloSeEligenRepartidoresDeEsaZona() {
+        Zona palermo = zonaRepository.save(new Zona("Palermo"));
+        Zona belgrano = zonaRepository.save(new Zona("Belgrano"));
+        // el de Belgrano espera hace mas tiempo, pero la entrega es de Palermo
+        repartidorDisponible(1L, "1", null).asignarZona(belgrano);
+        Repartidor dePalermo = repartidorDisponible(2L, "2", LocalDateTime.now());
+        dePalermo.asignarZona(palermo);
+        AsignarEntregaRequest request = pedido(100L);
+        request.setZonaId(palermo.getId());
+
+        EntregaResponse resultado = entregaService.asignarRepartidor(request);
+
+        assertThat(resultado.getRepartidorId()).isEqualTo(dePalermo.getId());
+    }
+
+    @Test
+    void sinRepartidoresEnLaZonaLaEntregaQuedaPendiente() {
+        Zona palermo = zonaRepository.save(new Zona("Palermo"));
+        repartidorDisponible(1L, "1", null); // sin zona
+        AsignarEntregaRequest request = pedido(100L);
+        request.setZonaId(palermo.getId());
+
+        EntregaResponse resultado = entregaService.asignarRepartidor(request);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.PENDIENTE_ASIGNACION);
+        assertThat(entregaService.consultarSeguimiento(resultado.getId()).getZonaId())
+                .isEqualTo(palermo.getId());
+    }
+
+    @Test
+    void unaZonaInexistenteDa404() {
+        AsignarEntregaRequest request = pedido(100L);
+        request.setZonaId(999L);
+
+        assertError(request, CodigoError.ZONE_NOT_FOUND);
+    }
+
+    // Al rechazar, la reasignacion tambien respeta la zona de la entrega
+    @Test
+    void alRechazarLaReasignacionRespetaLaZona() {
+        Zona palermo = zonaRepository.save(new Zona("Palermo"));
+        repartidorDisponible(1L, "1", null).asignarZona(palermo);
+        repartidorDisponible(2L, "2", null); // disponible, pero sin zona
+        AsignarEntregaRequest request = pedido(100L);
+        request.setZonaId(palermo.getId());
+        Long entregaId = entregaService.asignarRepartidor(request).getId();
+
+        EntregaResponse resultado = entregaService.rechazarAsignacion(
+                entregaId, new RechazarAsignacionRequest(), 1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoEntrega.PENDIENTE_ASIGNACION);
+    }
+
     // ---------- helpers ----------
+
+    private List<HistorialEstadoEntrega> historialDe(Long entregaId) {
+        return entregaRepository.findById(entregaId).orElseThrow().getHistorial();
+    }
+
+    private HistorialEstadoEntrega ultimoHistorial(Long entregaId) {
+        List<HistorialEstadoEntrega> historial = historialDe(entregaId);
+        return historial.get(historial.size() - 1);
+    }
 
     private Long entregaRetiradaPorElUsuario1() {
         Long entregaId = entregaAsignadaAlUsuario1();
@@ -418,7 +646,7 @@ class EntregaServiceTest {
     private EntregaService serviceConAvisosQueFallan() {
         return new EntregaService(entregaRepository, repartidorRepository,
                 new PedidosQueFallanAlInformar(), new NotificacionesQueFallan(),
-                new AnaliticaQueFalla(), new EntregaMapper());
+                new AnaliticaQueFalla(), new EntregaMapper(), zonaRepository);
     }
 
     private static class PedidosQueFallanAlInformar extends PedidosClientMock {
@@ -437,6 +665,11 @@ class EntregaServiceTest {
 
         @Override
         public void avisarRetiro(Long entregaId, Long clienteId) {
+            throw new IllegalStateException("Notificaciones no responde");
+        }
+
+        @Override
+        public void avisarEnCamino(Long entregaId, Long clienteId) {
             throw new IllegalStateException("Notificaciones no responde");
         }
 

@@ -4,7 +4,9 @@ import ar.edu.uade.deliverygo.logistica.dto.AsignarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.ConfirmarEntregaRequest;
 import ar.edu.uade.deliverygo.logistica.dto.EntregaResponse;
 import ar.edu.uade.deliverygo.logistica.dto.ErrorResponse;
+import ar.edu.uade.deliverygo.logistica.dto.RechazarAsignacionRequest;
 import ar.edu.uade.deliverygo.logistica.dto.RegistrarRetiroRequest;
+import ar.edu.uade.deliverygo.logistica.dto.SeguimientoEntregaResponse;
 import ar.edu.uade.deliverygo.logistica.model.EstadoEntrega;
 import ar.edu.uade.deliverygo.logistica.service.EntregaService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,13 +30,15 @@ import java.util.Objects;
 
 import static ar.edu.uade.deliverygo.logistica.controller.RepartidorController.HEADER_USUARIO;
 
-// API-03, API-04 y API-05. Solo recibe el pedido, valida el request (@Valid) y delega
-// en el service. Los errores los traduce GlobalExceptionHandler.
+// API-03, API-04 y API-05 (CU CORE) y los de evolucion: CU-06 (accept / reject),
+// CU-07 (on-the-way) y CU-08 (GET). Solo recibe el pedido, valida el request (@Valid)
+// y delega en el service. Los errores los traduce GlobalExceptionHandler.
 // Las anotaciones @Tag, @Operation, @ApiResponse y @Parameter solo documentan la API
 // (Swagger UI y el contrato OpenAPI en /v3/api-docs.yaml); no cambian lo que hace el codigo
 @RestController
 @RequestMapping("/api/v1/deliveries")
-@Tag(name = "Entregas", description = "Asignación, retiro y confirmación de entregas")
+@Tag(name = "Entregas", description = "Asignación, aceptación o rechazo, retiro, en camino, "
+        + "confirmación y seguimiento de entregas")
 public class EntregaController {
 
     private final EntregaService entregaService;
@@ -51,6 +56,7 @@ public class EntregaController {
             description = "Crea la entrega de un pedido confirmado, o reutiliza la que quedó pendiente, "
                     + "y le asigna el repartidor disponible que hace más tiempo no recibe una entrega. "
                     + "Con repartidorId se asigna ese repartidor en particular. "
+                    + "Con zonaId solo se eligen repartidores de esa zona. "
                     + "El código de confirmación se envía al cliente y nunca sale en la respuesta.")
     @ApiResponse(responseCode = "201", description = "Entrega ASIGNADA a un repartidor")
     @ApiResponse(responseCode = "202", description = "No hay repartidores disponibles: la entrega queda "
@@ -58,7 +64,7 @@ public class EntregaController {
     @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: faltan datos o tienen formato inválido",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "404", description = "ORDER_NOT_FOUND: el pedido no existe. "
-            + "COURIER_NOT_FOUND: el repartidor indicado no existe",
+            + "COURIER_NOT_FOUND: el repartidor indicado no existe. ZONE_NOT_FOUND: la zona indicada no existe",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "409", description = "DELIVERY_ALREADY_EXISTS: el pedido ya tiene una entrega "
             + "asignada. CONCURRENT_UPDATE: otra operación tomó al mismo repartidor; se puede reintentar",
@@ -135,5 +141,102 @@ public class EntregaController {
             @Valid @RequestBody ConfirmarEntregaRequest request) {
 
         return ResponseEntity.ok(entregaService.confirmarEntrega(id, request, usuarioId));
+    }
+
+    // CU-06: aceptar asignacion -> 200
+    // POST /api/v1/deliveries/{id}/accept   (header X-Usuario-Id: 1)
+    @Operation(summary = "CU-06 Aceptar asignación",
+            description = "El repartidor asignado acepta la entrega. Sigue ASIGNADA y la aceptación "
+                    + "queda en el historial.")
+    @ApiResponse(responseCode = "200", description = "Asignación aceptada")
+    @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: falta el header X-Usuario-Id",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "403", description = "COURIER_NOT_ASSIGNED: el usuario no es el repartidor asignado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "DELIVERY_NOT_FOUND: la entrega no existe",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "DELIVERY_INVALID_STATE: la entrega no está ASIGNADA",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @PostMapping("/{id}/accept")
+    public ResponseEntity<EntregaResponse> aceptarAsignacion(
+            @Parameter(description = "Id de la entrega", example = "1")
+            @PathVariable Long id,
+            @Parameter(description = "Id del usuario que hace el pedido (simula el usuario del JWT)",
+                    example = "1")
+            @RequestHeader(HEADER_USUARIO) Long usuarioId) {
+
+        return ResponseEntity.ok(entregaService.aceptarAsignacion(id, usuarioId));
+    }
+
+    // CU-06: rechazar asignacion -> 200
+    // POST /api/v1/deliveries/{id}/reject   (header X-Usuario-Id: 1)
+    // { "motivo": "Se me pinchó la rueda" }   (el body es opcional)
+    @Operation(summary = "CU-06 Rechazar asignación",
+            description = "El repartidor asignado rechaza la entrega: vuelve a PENDIENTE_ASIGNACION, "
+                    + "él queda DISPONIBLE y se reasigna enseguida a otro repartidor con un código nuevo. "
+                    + "Si no hay otro disponible, la respuesta muestra la entrega PENDIENTE_ASIGNACION.")
+    @ApiResponse(responseCode = "200", description = "Asignación rechazada: entrega reasignada (ASIGNADA) "
+            + "o pendiente (PENDIENTE_ASIGNACION)")
+    @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: motivo demasiado largo "
+            + "o falta el header X-Usuario-Id",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "403", description = "COURIER_NOT_ASSIGNED: el usuario no es el repartidor asignado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "DELIVERY_NOT_FOUND: la entrega no existe",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "DELIVERY_INVALID_STATE: la entrega no está ASIGNADA. "
+            + "CONCURRENT_UPDATE: otra operación tomó al mismo repartidor; se puede reintentar",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<EntregaResponse> rechazarAsignacion(
+            @Parameter(description = "Id de la entrega", example = "1")
+            @PathVariable Long id,
+            @Parameter(description = "Id del usuario que hace el pedido (simula el usuario del JWT)",
+                    example = "1")
+            @RequestHeader(HEADER_USUARIO) Long usuarioId,
+            @Valid @RequestBody(required = false) RechazarAsignacionRequest request) {
+
+        RechazarAsignacionRequest rechazo = Objects.isNull(request) ? new RechazarAsignacionRequest() : request;
+        return ResponseEntity.ok(entregaService.rechazarAsignacion(id, rechazo, usuarioId));
+    }
+
+    // CU-07: informar pedido en camino -> 200
+    // POST /api/v1/deliveries/{id}/on-the-way   (header X-Usuario-Id: 1)
+    @Operation(summary = "CU-07 Informar pedido en camino",
+            description = "El repartidor asignado informa que va hacia el cliente: RETIRADA pasa a EN_CAMINO.")
+    @ApiResponse(responseCode = "200", description = "Entrega EN_CAMINO")
+    @ApiResponse(responseCode = "400", description = "VALIDATION_ERROR: falta el header X-Usuario-Id",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "403", description = "COURIER_NOT_ASSIGNED: el usuario no es el repartidor asignado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "DELIVERY_NOT_FOUND: la entrega no existe",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "DELIVERY_INVALID_STATE: la entrega no está RETIRADA",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @PostMapping("/{id}/on-the-way")
+    public ResponseEntity<EntregaResponse> informarEnCamino(
+            @Parameter(description = "Id de la entrega", example = "1")
+            @PathVariable Long id,
+            @Parameter(description = "Id del usuario que hace el pedido (simula el usuario del JWT)",
+                    example = "1")
+            @RequestHeader(HEADER_USUARIO) Long usuarioId) {
+
+        return ResponseEntity.ok(entregaService.informarEnCamino(id, usuarioId));
+    }
+
+    // CU-08: consultar seguimiento -> 200
+    // GET /api/v1/deliveries/{id}
+    @Operation(summary = "CU-08 Consultar seguimiento de entrega",
+            description = "Devuelve la entrega con su historial de estados, del más antiguo al más reciente. "
+                    + "No incluye el código de confirmación.")
+    @ApiResponse(responseCode = "200", description = "Entrega con su historial")
+    @ApiResponse(responseCode = "404", description = "DELIVERY_NOT_FOUND: la entrega no existe",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @GetMapping("/{id}")
+    public ResponseEntity<SeguimientoEntregaResponse> consultarSeguimiento(
+            @Parameter(description = "Id de la entrega", example = "1")
+            @PathVariable Long id) {
+
+        return ResponseEntity.ok(entregaService.consultarSeguimiento(id));
     }
 }

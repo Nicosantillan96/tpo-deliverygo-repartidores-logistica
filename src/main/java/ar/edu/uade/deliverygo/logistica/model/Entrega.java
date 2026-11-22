@@ -25,6 +25,10 @@ public class Entrega {
     private String direccionRetiro;
     @Column(nullable = false)
     private String direccionEntrega;
+    // CU-10: zona de la entrega, la informa Pedidos al pedir la asignacion (opcional).
+    // Si viene, solo se eligen repartidores de esa zona
+    @Column(name = "zona_id")
+    private Long zonaId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -43,11 +47,13 @@ public class Entrega {
     @JoinColumn(name = "repartidor_id")
     private Repartidor repartidor;
 
-    //el historial se guarda en cascada con la entrega y nunca se borra
+    //el historial se guarda en cascada con la entrega y nunca se borra.
+    //@OrderBy: se lee en el orden en que se registraron los cambios (CU-08)
     @OneToMany(
             mappedBy = "entrega",
             cascade = CascadeType.ALL
     )
+    @OrderBy("id ASC")
     private List<HistorialEstadoEntrega> historial = new ArrayList<>();
 
 
@@ -96,6 +102,14 @@ public class Entrega {
 
     public void setDireccionEntrega(String direccionEntrega) {
         this.direccionEntrega = direccionEntrega;
+    }
+
+    public Long getZonaId() {
+        return zonaId;
+    }
+
+    public void setZonaId(Long zonaId) {
+        this.zonaId = zonaId;
     }
 
     public EstadoEntrega getEstado() {
@@ -186,6 +200,33 @@ public class Entrega {
         this.estado = EstadoEntrega.RETIRADA;
     }
 
+    // CU-06: el repartidor acepta la asignacion. No es un cambio de estado:
+    // la entrega sigue ASIGNADA. Solo se puede aceptar mientras este ASIGNADA (RN-08)
+    public void aceptar() {
+        if (estado != EstadoEntrega.ASIGNADA) {
+            throw new ReglaNegocioException(CodigoError.DELIVERY_INVALID_STATE,
+                    "Solo se puede aceptar una entrega ASIGNADA");
+        }
+    }
+
+    // CU-06: el repartidor rechaza la asignacion: ASIGNADA -> PENDIENTE_ASIGNACION (RN-08).
+    // Se libera al repartidor (RN-07) y se borran los datos de la asignacion;
+    // la proxima asignacion genera un codigo nuevo (RN-13)
+    public void rechazar() {
+        validarTransicion(EstadoEntrega.PENDIENTE_ASIGNACION);
+        repartidor.liberar();
+        this.repartidor = null;
+        this.codigoConfirmacion = null;
+        this.fechaAsignacion = null;
+        this.estado = EstadoEntrega.PENDIENTE_ASIGNACION;
+    }
+
+    // CU-07: el repartidor informa que va en camino: RETIRADA -> EN_CAMINO (RN-08)
+    public void informarEnCamino() {
+        validarTransicion(EstadoEntrega.EN_CAMINO);
+        this.estado = EstadoEntrega.EN_CAMINO;
+    }
+
     // CU-05: RETIRADA / EN_CAMINO -> COMPLETADA (RN-07, RN-08, RN-09, RN-13)
     public void completar(String codigo) {
         // RN-09: no se puede completar una entrega que no fue retirada
@@ -204,13 +245,19 @@ public class Entrega {
         repartidor.liberar();
     }
 
-    // RN-08: maquina de estados de la entrega
-    // Solo incluye las transiciones de los CU CORE;
+    // RN-08: maquina de estados de la entrega (seccion 7 de la especificacion).
+    // Falta la cancelacion (iniciada por Pedidos), que no es un CU del modulo.
+    // RETIRADA -> COMPLETADA sigue permitida aunque exista CU-07 (DM-08)
     private void validarTransicion(EstadoEntrega destino) {
         boolean valida = switch (estado) {
             case PENDIENTE_ASIGNACION -> destino == EstadoEntrega.ASIGNADA;
-            case ASIGNADA -> destino == EstadoEntrega.RETIRADA;
-            case RETIRADA, EN_CAMINO -> destino == EstadoEntrega.COMPLETADA;
+            // CU-04 retiro o CU-06 rechazo
+            case ASIGNADA -> destino == EstadoEntrega.RETIRADA
+                    || destino == EstadoEntrega.PENDIENTE_ASIGNACION;
+            // CU-07 en camino o CU-05 entrega
+            case RETIRADA -> destino == EstadoEntrega.EN_CAMINO
+                    || destino == EstadoEntrega.COMPLETADA;
+            case EN_CAMINO -> destino == EstadoEntrega.COMPLETADA;
             case COMPLETADA, CANCELADA -> false;
         };
         if (!valida) {

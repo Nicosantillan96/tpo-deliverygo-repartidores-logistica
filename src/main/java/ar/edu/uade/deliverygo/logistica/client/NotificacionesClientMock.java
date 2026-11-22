@@ -26,6 +26,12 @@ public class NotificacionesClientMock implements NotificacionesClient {
     }
 
     @Override
+    public void avisarEnCamino(Long entregaId, Long clienteId) {
+        log.info("[MOCK Notificaciones] Entrega {} en camino. Aviso enviado al cliente {}",
+                entregaId, clienteId);
+    }
+
+    @Override
     public void avisarEntrega(Long entregaId, Long clienteId) {
         log.info("[MOCK Notificaciones] Entrega {} completada. Aviso enviado al cliente {}",
                 entregaId, clienteId);

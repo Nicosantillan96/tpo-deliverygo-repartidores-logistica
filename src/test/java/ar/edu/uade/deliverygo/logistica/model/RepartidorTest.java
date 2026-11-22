@@ -96,6 +96,29 @@ class RepartidorTest {
         assertThat(repartidor.vehiculoActivo()).isSameAs(actual);
     }
 
+    // CU-09: activar y quitar se prueban con ids reales en RepartidorServiceTest
+
+    @Test
+    void unVehiculoQueNoEsDelRepartidorNoExiste() {
+        Repartidor repartidor = repartidor(EstadoRepartidor.ACTIVO, Disponibilidad.DISPONIBLE);
+
+        assertThatThrownBy(() -> repartidor.buscarVehiculo(99L))
+                .isInstanceOf(ReglaNegocioException.class)
+                .extracting("codigo").isEqualTo(CodigoError.VEHICLE_NOT_FOUND);
+    }
+
+    // CU-10
+
+    @Test
+    void asignarZona() {
+        Repartidor repartidor = repartidor(EstadoRepartidor.ACTIVO, Disponibilidad.DISPONIBLE);
+        Zona zona = new Zona("Palermo");
+
+        repartidor.asignarZona(zona);
+
+        assertThat(repartidor.getZona()).isSameAs(zona);
+    }
+
     private Repartidor repartidor(EstadoRepartidor estado, Disponibilidad disponibilidad) {
         Repartidor repartidor = new Repartidor();
         repartidor.setEstado(estado);

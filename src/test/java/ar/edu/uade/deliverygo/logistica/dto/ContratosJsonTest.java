@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.json.JsonTest;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,10 +70,11 @@ class ContratosJsonTest {
                 5L, 1L, "Juan", "Perez", "30123456", "1155554444",
                 EstadoRepartidor.ACTIVO, Disponibilidad.NO_DISPONIBLE,
                 new VehiculoDTO(TipoVehiculo.MOTO, "AB123CD", null),
-                LocalDateTime.of(2026, 11, 1, 12, 0));
+                LocalDateTime.of(2026, 11, 1, 12, 0), 3L);
 
         JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(response));
 
+        assertThat(json.get("zonaId").asLong()).isEqualTo(3L);
         assertThat(json.get("dni").asText()).isEqualTo("30123456");
         assertThat(json.get("telefono").asText()).isEqualTo("1155554444");
         assertThat(json.get("estado").asText()).isEqualTo("ACTIVO");
@@ -102,6 +104,23 @@ class ContratosJsonTest {
 
         assertThat(request.getCodigoConfirmacion()).isEqualTo("4821");
         assertThat(request.getObservacion()).isNull();
+    }
+
+    // DTO-12 (RN-13): el seguimiento (CU-08) tampoco expone el codigo de confirmacion
+    @Test
+    void seguimientoNoIncluyeElCodigoDeConfirmacion() throws Exception {
+        SeguimientoEntregaResponse response = new SeguimientoEntregaResponse(
+                1L, 100L, 5L, null, EstadoEntrega.ASIGNADA,
+                LocalDateTime.of(2026, 11, 1, 12, 0), LocalDateTime.of(2026, 11, 1, 12, 1),
+                null, null,
+                List.of(new HistorialEstadoResponse(null, EstadoEntrega.PENDIENTE_ASIGNACION,
+                        LocalDateTime.of(2026, 11, 1, 12, 0), 0L, null)));
+
+        JsonNode json = objectMapper.readTree(objectMapper.writeValueAsString(response));
+
+        assertThat(json.has("codigoConfirmacion")).isFalse();
+        assertThat(json.get("historial").get(0).get("estadoNuevo").asText())
+                .isEqualTo("PENDIENTE_ASIGNACION");
     }
 
     // DTO-08: nombres de campos del formato normalizado

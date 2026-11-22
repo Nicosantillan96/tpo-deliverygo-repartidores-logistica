@@ -27,6 +27,10 @@ public class AsignarEntregaRequest {
     // Opcional
     private Long repartidorId;
 
+    // Opcional (CU-10): zona de la entrega. Si viene, la asignacion automatica
+    // solo elige repartidores de esa zona
+    private Long zonaId;
+
     public AsignarEntregaRequest() {
     }
 
@@ -88,5 +92,13 @@ public class AsignarEntregaRequest {
 
     public void setRepartidorId(Long repartidorId) {
         this.repartidorId = repartidorId;
+    }
+
+    public Long getZonaId() {
+        return zonaId;
+    }
+
+    public void setZonaId(Long zonaId) {
+        this.zonaId = zonaId;
     }
 }

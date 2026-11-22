@@ -19,9 +19,18 @@ public enum CodigoError {
     COURIER_NOT_FOUND(HttpStatus.NOT_FOUND),
     DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND),
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND),
+    // CU-09 y CU-10. No estan en la seccion 17: se agregan con los CU de evolucion
+    VEHICLE_NOT_FOUND(HttpStatus.NOT_FOUND),
+    ZONE_NOT_FOUND(HttpStatus.NOT_FOUND),
 
     // 409: conflicto con el estado actual de los datos
     COURIER_DNI_DUPLICATED(HttpStatus.CONFLICT),
+    // CU-01 y CU-09: patente ya registrada en otro vehiculo (antes daba 500)
+    VEHICLE_PLATE_DUPLICATED(HttpStatus.CONFLICT),
+    // CU-09: no se puede quitar el vehiculo activo
+    VEHICLE_IS_ACTIVE(HttpStatus.CONFLICT),
+    // CU-10: ya existe una zona con ese nombre
+    ZONE_NAME_DUPLICATED(HttpStatus.CONFLICT),
     COURIER_ALREADY_REGISTERED(HttpStatus.CONFLICT),
     COURIER_HAS_ACTIVE_DELIVERY(HttpStatus.CONFLICT),
     DELIVERY_ALREADY_EXISTS(HttpStatus.CONFLICT),

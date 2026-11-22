@@ -5,8 +5,8 @@ import ar.edu.uade.deliverygo.logistica.model.EstadoRepartidor;
 
 import java.time.LocalDateTime;
 
-// DTO-02: salida de CU-01 y CU-02. Solo lectura: no tiene setters
-// Incluye dni y telefono
+// DTO-02: salida de CU-01, CU-02, CU-08 (GET) y CU-10 (zona). Solo lectura: no tiene setters
+// Incluye dni y telefono. vehiculo es el vehiculo activo; zonaId es null si no tiene zona
 public class RepartidorResponse {
 
     private final Long id;
@@ -19,11 +19,13 @@ public class RepartidorResponse {
     private final Disponibilidad disponibilidad;
     private final VehiculoDTO vehiculo;
     private final LocalDateTime fechaAlta;
+    private final Long zonaId;
 
     public RepartidorResponse(Long id, Long usuarioId, String nombre, String apellido,
                               String dni, String telefono,
                               EstadoRepartidor estado, Disponibilidad disponibilidad,
-                              VehiculoDTO vehiculo, LocalDateTime fechaAlta) {
+                              VehiculoDTO vehiculo, LocalDateTime fechaAlta, Long zonaId) {
+        this.zonaId = zonaId;
         this.id = id;
         this.usuarioId = usuarioId;
         this.nombre = nombre;
@@ -75,5 +77,9 @@ public class RepartidorResponse {
 
     public LocalDateTime getFechaAlta() {
         return fechaAlta;
+    }
+
+    public Long getZonaId() {
+        return zonaId;
     }
 }

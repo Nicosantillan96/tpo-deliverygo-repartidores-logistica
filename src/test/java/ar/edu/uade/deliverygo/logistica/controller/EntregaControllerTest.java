@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -166,6 +167,102 @@ class EntregaControllerTest {
                         .content("{}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    // ---------- CU-06 accept / reject ----------
+
+    @Test
+    void aceptarDevuelve200YSigueAsignada() throws Exception {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        mockMvc.perform(post("/api/v1/deliveries/{id}/accept", entregaId)
+                        .header("X-Usuario-Id", 1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("ASIGNADA"));
+    }
+
+    // Sin otro repartidor, la entrega rechazada queda pendiente
+    @Test
+    void rechazarSinBodyDevuelve200YQuedaPendiente() throws Exception {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        mockMvc.perform(post("/api/v1/deliveries/{id}/reject", entregaId)
+                        .header("X-Usuario-Id", 1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("PENDIENTE_ASIGNACION"))
+                .andExpect(jsonPath("$.repartidorId").isEmpty());
+    }
+
+    @Test
+    void rechazarSinHeaderDevuelve400() throws Exception {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        mockMvc.perform(post("/api/v1/deliveries/{id}/reject", entregaId))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    // ---------- CU-07 on-the-way ----------
+
+    @Test
+    void enCaminoDevuelve200() throws Exception {
+        Long entregaId = entregaAsignadaAlUsuario1();
+        retirar(entregaId);
+
+        mockMvc.perform(post("/api/v1/deliveries/{id}/on-the-way", entregaId)
+                        .header("X-Usuario-Id", 1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EN_CAMINO"));
+    }
+
+    // RN-08
+    @Test
+    void enCaminoSinRetirarDevuelve409() throws Exception {
+        Long entregaId = entregaAsignadaAlUsuario1();
+
+        mockMvc.perform(post("/api/v1/deliveries/{id}/on-the-way", entregaId)
+                        .header("X-Usuario-Id", 1))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("DELIVERY_INVALID_STATE"));
+    }
+
+    // ---------- CU-08 GET /api/v1/deliveries/{id} ----------
+
+    @Test
+    void seguimientoDevuelveElHistorialSinElCodigo() throws Exception {
+        Long entregaId = entregaAsignadaAlUsuario1();
+        retirar(entregaId);
+
+        mockMvc.perform(get("/api/v1/deliveries/{id}", entregaId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("RETIRADA"))
+                .andExpect(jsonPath("$.historial.length()").value(3))
+                .andExpect(jsonPath("$.historial[2].estadoNuevo").value("RETIRADA"))
+                .andExpect(jsonPath("$.codigoConfirmacion").doesNotExist());
+    }
+
+    @Test
+    void seguimientoDeUnaEntregaInexistenteDevuelve404() throws Exception {
+        mockMvc.perform(get("/api/v1/deliveries/{id}", 999))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("DELIVERY_NOT_FOUND"));
+    }
+
+    // ---------- CU-10 zona en el assign ----------
+
+    @Test
+    void asignarConUnaZonaInexistenteDevuelve404() throws Exception {
+        mockMvc.perform(post("/api/v1/deliveries/assign")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "pedidoId": 100, "clienteId": 200, "comercioId": 300,
+                                  "direccionRetiro": "Av. Corrientes 1234, CABA",
+                                  "direccionEntrega": "Lima 757, CABA", "zonaId": 999
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("ZONE_NOT_FOUND"));
     }
 
     // ---------- helpers ----------

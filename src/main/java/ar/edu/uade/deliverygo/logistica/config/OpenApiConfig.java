@@ -16,8 +16,9 @@ public class OpenApiConfig {
         return new OpenAPI().info(new Info()
                 .title("DeliveryGo - Repartidores y Logística")
                 .version("1.0")
-                .description("Módulo de repartidores y ciclo de vida de las entregas (CU-01 a CU-05). "
-                        + "Las operaciones del repartidor (disponibilidad, retiro y confirmación) "
+                .description("Módulo de repartidores y ciclo de vida de las entregas (CU-01 a CU-10). "
+                        + "Las operaciones del repartidor (disponibilidad, aceptar o rechazar, retiro, "
+                        + "en camino, confirmación, vehículos y zona) "
                         + "requieren el header X-Usuario-Id, que simula el usuario del JWT (RN-10). "
                         + "Usuarios de prueba del mock: 1 a 5. Pedidos confirmados del mock: 100 a 105."));
     }

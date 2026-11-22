@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// springdoc publica el contrato OpenAPI con los cinco endpoints del modulo
+// springdoc publica el contrato OpenAPI con los endpoints del modulo
 @SpringBootTest
 @AutoConfigureMockMvc
 class OpenApiConfigTest {
@@ -19,7 +19,7 @@ class OpenApiConfigTest {
     private MockMvc mockMvc;
 
     @Test
-    void elContratoOpenApiIncluyeLosCincoEndpoints() throws Exception {
+    void elContratoOpenApiIncluyeLosCincoEndpointsCore() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("DeliveryGo - Repartidores y Logística"))
@@ -28,6 +28,25 @@ class OpenApiConfigTest {
                 .andExpect(jsonPath("$.paths['/api/v1/deliveries/assign'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/deliveries/{id}/pickup'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/deliveries/{id}/complete'].post").exists());
+    }
+
+    // CU-06 a CU-10
+    @Test
+    void elContratoOpenApiIncluyeLosEndpointsDeEvolucion() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/deliveries/{id}/accept'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/deliveries/{id}/reject'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/deliveries/{id}/on-the-way'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/deliveries/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/couriers/{id}'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/couriers/{id}/vehicles'].get").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/couriers/{id}/vehicles'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/couriers/{id}/vehicles/{vehiculoId}/activate'].patch").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/couriers/{id}/vehicles/{vehiculoId}'].delete").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/couriers/{id}/zone'].put").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/zones'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/zones'].get").exists());
     }
 
     // Las anotaciones de los controllers documentan los codigos de error y el 202
